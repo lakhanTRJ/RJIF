@@ -1,0 +1,10 @@
+# Unresolved gaps
+
+1. Direct reference browsing remains blocked by Cloudflare. The rebuild instead uses the authorized Elementor/WXR/uploads package and supplied desktop/mobile captures.
+2. South Conference and South Exhibition now have desktop and mobile references; their supplied mobile captures omitted the header, so the owner-directed India Forum mobile header pattern is used. Policy mobile and the new commerce/account screens use the established responsive design without legacy mobile captures.
+3. Four South speaker portraits have archive filenames that do not resolve byte-for-byte from the Elementor URLs. The UI intentionally shows neutral initials for any failed portrait rather than substituting stock media.
+4. Seven delegate products and one administrator-configurable awards fee are modeled. Checkout and account screens exist, but Razorpay order creation/webhook verification and production email remain disabled until test credentials are supplied. No payment or email was triggered.
+5. Live production SEO descriptions, canonical values, JSON-LD, analytics, consent tools, carousel timing, and external blog destinations could not be verified through Cloudflare.
+6. Page metadata, publish state, homepage videos, current/full speaker directories, quote, agenda visibility/items, pass content/layout, event gallery, footer, products/prices, article scheduling/revisions, media, and submissions are supported on separate `/admin/*` routes. Testimonials and contact cards remain based on the approved export and are not yet separate database editors.
+7. MySQL migrations, seed imports, public persistence reads, and session-backed admin route protection were executed locally. A named administrator account has intentionally not been created because no private password was supplied.
+8. AWS host capacity, Nginx vhosts, running processes, certificates, MySQL versions, ports, backups, and disk/RAM headroom have not been inspected. No production reuse recommendation is final until that read-only inspection is completed.

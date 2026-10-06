@@ -1,0 +1,17 @@
+.speaker-placeholder {
+  display: grid;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  place-items: center;
+  border-radius: 20px 20px 0 0;
+  background: linear-gradient(145deg, #ececec, #cfcfcf);
+  color: #595959;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+@media (max-width: 760px) {
+  .speaker-placeholder {
+    border-radius: 12px 12px 0 0;
+  }
+}

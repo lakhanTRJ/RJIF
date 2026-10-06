@@ -1,0 +1,10 @@
+node_modules/
+client/dist/
+server/uploads/
+.env
+*.log
+.DS_Store
+coverage/
+docs/reference-captures/
+backups/
+rjif-reference-package/

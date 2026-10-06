@@ -1,0 +1,75 @@
+{
+  "heroYoutubeUrl": "https://youtu.be/yVViGMSa-J8",
+  "partnerLabel": "Associate Partner",
+  "partnerLogoUrl": "/reference/partners/deloitte-logo-black.jpg",
+  "accordions": [
+    {
+      "key": "categories",
+      "title": "Award Categories",
+      "type": "groups",
+      "groups": [
+        {"title":"Excellence in Integrated Marketing","bullets":["Recognises excellence in building brand awareness and driving business through impactful, multi-channel marketing campaigns.","Entries should demonstrate an integrated approach across platforms, with consistency in brand communication, positioning and customer engagement.","Submissions should outline the campaign objective, channel integration, execution, innovation and measurable impact on brand visibility and business performance."],"link":"/reference/2026/09/01_Excellence_in_Integrated_Marketing.pdf"},
+        {"title":"Excellence in Digital Brand Marketing","bullets":["Recognises excellence in building a strong and effective digital brand presence across relevant online platforms.","Entries should demonstrate compelling content and storytelling, innovative digital marketing and meaningful audience engagement or community building.","Submissions should include evidence of digital campaigns, content strategy and measurable performance through relevant analytics or platform data."],"link":"/reference/2026/09/02_Excellence_in_Digital_Brand_Marketing.pdf"},
+        {"title":"Excellence in Online Retail","bullets":["Recognises excellence in building and scaling an effective online jewellery retail business through a brand-owned e-commerce platform.","Entries should demonstrate growth in online sales, customer acquisition, digital commerce innovation and scalability.","Submissions should include measurable evidence of online business performance, customer growth and overall growth trajectory."],"link":"/reference/2026/09/03_Excellence_in_Online_Retail.pdf"},
+        {"title":"Excellence in Omni Channel Brand","bullets":["Recognises excellence in creating a connected customer journey across digital and physical retail channels.","Entries should demonstrate how customers can move between website, app and store while retaining continuity.","Submissions should include strategy, journey visuals, initiatives, feedback and measurable results."],"link":"/reference/2026/09/04_Excellence_in_Omni_Channel_Brand.pdf"},
+        {"title":"Excellence in Technology Integration","bullets":["Recognises meaningful adoption of technology to improve operations and retail performance.","Entries should show enhanced customer experience, employee productivity, processes, efficiency or business effectiveness.","Submissions should include evidence and measurable outcomes."]},
+        {"title":"Excellence in People Welfare, Workplace Culture and Motivation","bullets":["Recognises a positive, engaging and people-focused workplace culture.","Entries may include wellbeing, learning, skills, recognition, career growth, team building and inclusion initiatives.","Submissions should include evidence of performance, engagement and retention."]},
+        {"title":"Excellence in Customer Centricity","bullets":["Recognises a customer-first culture supported by loyalty, personalised engagement, feedback and after-sales service.","Submissions should include measurable improvements in satisfaction, repeat purchase or retention."]},
+        {"title":"Excellence in CSR Commitment & Impact","bullets":["Recognises sustained CSR commitment, scale, reach, sustainability and execution.","Submissions should provide measurable outcomes and evidence of impact."]},
+        {"title":"Excellence in CSR Project","bullets":["Recognises one specific CSR project for relevance, purpose and execution.","Submissions should provide evidence of beneficiaries and measurable impact."]},
+        {"title":"Retail Start Up of the Year","bullets":["Recognises emerging brands with a differentiated proposition, innovation and market potential.","Submissions should demonstrate growth and business traction."]},
+        {"title":"New Age Brand of the Year","bullets":["Recognises modern brands redefining customer experience through design and personalisation.","Submissions should demonstrate a distinctive and consistent brand experience."]},
+        {"title":"Independent Jeweller of the Year","bullets":["Recognises independent retailers demonstrating state leadership, growth, innovation and trust."]},
+        {"title":"Regional Retail Chain of the Year","bullets":["Recognises regional chains demonstrating presence, growth and expansion across more than one state."]},
+        {"title":"Next-Gen Leader of the Year","bullets":["Recognises next-generation leaders with measurable contributions through leadership, strategy and innovation."]},
+        {"title":"Debutant of the Year","bullets":["Recognises emerging leaders in their first few years who demonstrate initiative, impact and innovation."]}
+      ]
+    },
+    {
+      "key": "nominate",
+      "title": "Nominate",
+      "type": "groups",
+      "intro": "Honorary Awards recognise individuals whose leadership, contribution and impact have shaped the jewellery industry. The awards are conferred based on The Retail Jeweller’s independent industry research and evaluation. Self-nominations and nominations for another person may be submitted for review.",
+      "groups": [
+        {"title":"Visionary Leader of the Year","bullets":["Recognises industry leaders whose long-term vision has created transformational impact within their organisation and beyond.","Assessment considers visionary thinking, innovation, sustained growth, strategic achievements and influence across the wider jewellery industry."]},
+        {"title":"Women Leader of the Year","bullets":["Recognises women leaders who have demonstrated sustained leadership and meaningful impact on business, people and organisational growth.","Assessment considers innovation, long-term contribution, business performance and industry influence."]},
+        {"title":"Special Contribution to the Industry","bullets":["Recognises contribution beyond individual business interests through advocacy, mentorship, ecosystem building or industry development."]},
+        {"title":"Lifetime Achievement in Retail","bullets":["Honours an exceptional career and enduring contribution to jewellery retail."]},
+        {"title":"Lifetime Achievement in Manufacturing","bullets":["Honours an exceptional career and enduring contribution to jewellery manufacturing."]}
+      ]
+    },
+    {
+      "key": "timeline",
+      "title": "Nomination Timeline",
+      "type": "timeline",
+      "items": [
+        {"title":"Registration:","date":"9th Sept - 31st Oct 2026","body":"All nomination forms must be submitted online"},
+        {"title":"Excellence Evaluation:","date":"15th Nov 2026.","body":"Award finalists will be notified via email"},
+        {"title":"Awards Night:","date":"6th Jan 2027","body":"Finalists will be invited to attend the Awards Ceremony, where winners will be announced during a celebratory dinner."}
+      ]
+    },
+    {
+      "key": "criteria",
+      "title": "Award Criteria",
+      "type": "ordered",
+      "items": [
+        "Eligibility: Nominations are open to retail jewellery shop owners.",
+        "Multiple Nominations: There is no limit to the number of individuals that can be nominated. A separate form must be submitted for each nominee.",
+        "Self-Nominations: Self-nominations are welcome.",
+        "Event Attendance: All nominees, nominators and recipients are encouraged to attend the Awards Ceremony on 6 January 2027.",
+        "Nomination Form: Complete the official online nomination form, including a written statement outlining the nominee’s contributions and achievements.",
+        "Supporting Materials: Upload high-resolution photos of the nominee, property or team, along with any supporting documents.",
+        "Video Nominations: Contact us for details if you want to submit a recorded nomination."
+      ]
+    },
+    {
+      "key": "guidelines",
+      "title": "Guidelines for Entry",
+      "type": "sections",
+      "sections": [
+        {"title":"Submission Guidelines","items":["Entry is open globally to any retail jewellery company, brand or individual with a retail outlet for walk-in customers, provided they are active in India.","No mainstream manufacturer is permitted to participate in the Awards.","Each category has specific description criteria, which the entrant must adhere to.","Submissions may be entered into multiple categories. No separate entry fee will be charged for additional categories.","All entries and documents must be submitted within the deadline.","Details of a Single Point of Contact (SPOC) must be provided.","Once submitted, applications cannot be modified until the final selection process.","Application fees, once paid, are non-refundable.","Without payment of the application fee, the company or individual will not be allowed to participate."]},
+        {"title":"Receipt of Entries","items":["Participants can apply online and complete the application form with supporting documents.","The last date for receiving completed applications is October 31, 2026.","Late applications may be accepted only at the sole discretion of the Awards Management.","Awards Management is not responsible for applications received in an incorrect format, late, corrupted or unreadable."]}
+      ]
+    }
+  ]
+}

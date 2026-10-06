@@ -1,0 +1,18 @@
+path,evidence,status,template
+/,Elementor export and desktop/mobile screenshots,inspected,conference-india
+/conference-south/,Elementor export and desktop/mobile screenshots,inspected,conference-south
+/exhibition/,Elementor export and desktop/mobile screenshots,inspected,exhibition-india
+/exhibition-south/,Elementor export and desktop/mobile screenshots,inspected,exhibition-south
+/speakers/,Elementor export and desktop/mobile screenshots,inspected,speaker-directory-india
+/south-forum-speakers/,Elementor export,export-inspected-visual-pending,speaker-directory-south
+/previous-edition-highlights/,Elementor export and desktop/mobile screenshots,inspected,highlights
+/business-excellence-awards/,Elementor export and desktop/mobile screenshots,inspected,awards
+/business-excellence-awards-50/,Elementor export,pending-duplicate-review,awards-draft-or-alternate
+/partner/,Elementor export and desktop/mobile screenshots,inspected,partner
+/privacy-policy/,Elementor export and desktop screenshot,inspected-desktop-mobile-pending,legal
+/cart/,Owner requirements and WordPress export,implemented-payment-pending,commerce-cart
+/checkout/,Owner requirements and WordPress export,implemented-payment-pending,commerce-checkout
+/my-account/,Owner requirements and WordPress export,implemented-auth-pending,commerce-account
+/felicitation/,Elementor export and desktop/mobile screenshots,inspected,felicitation
+/blog/,Owner requirements and WordPress export,implemented-database-test-pending,article-index
+/blog/:slug/,Owner requirements,implemented-database-test-pending,article-detail

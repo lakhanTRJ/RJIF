@@ -1,0 +1,19 @@
+export const referencePaths = [
+  '/',
+  '/conference-south/',
+  '/exhibition/',
+  '/exhibition-south/',
+  '/speakers/',
+  '/south-forum-speakers/',
+  '/business-excellence-awards/',
+  '/leadership-awards/',
+  '/previous-edition-highlights/',
+  '/partner/',
+  '/felicitation/',
+  '/privacy-policy/',
+  '/cart/',
+  '/checkout/',
+  '/my-account/'
+  ,'/delegate-pass/'
+  ,'/registration/'
+];
