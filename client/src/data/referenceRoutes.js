@@ -13,7 +13,7 @@ export const referencePaths = [
   '/privacy-policy/',
   '/cart/',
   '/checkout/',
-  '/my-account/'
-  ,'/delegate-pass/'
-  ,'/registration/'
+  '/my-account/',
+  '/delegate-pass/',
+  '/registration/',
 ];

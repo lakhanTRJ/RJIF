@@ -1,16 +1,21 @@
 {
   "name": "retail-jeweller-india-forum",
   "private": true,
-  "workspaces": ["client", "server"],
+  "workspaces": [
+    "client",
+    "server"
+  ],
   "scripts": {
     "dev": "concurrently -n api,client -c yellow,cyan \"npm run dev -w server\" \"npm run dev -w client\"",
     "build": "npm run build -w client",
     "start": "npm run start -w server",
     "test": "npm run test -w server",
-    "lint": "npm run lint -w client && npm run lint -w server"
+    "lint": "npm run lint -w client && npm run lint -w server",
+    "format": "prettier --write \"client/src/**/*.{js,jsx,css}\" \"server/{src,scripts,test}/**/*.js\"",
+    "format:check": "prettier --check \"client/src/**/*.{js,jsx,css}\" \"server/{src,scripts,test}/**/*.js\""
   },
   "devDependencies": {
-    "concurrently": "^9.1.2"
+    "concurrently": "^9.1.2",
+    "prettier": "^3.6.2"
   }
 }
-

@@ -1,0 +1,9 @@
+node_modules
+client/dist
+server/uploads
+.git
+.env
+server/.env
+*.log
+backups
+rjif-reference-package

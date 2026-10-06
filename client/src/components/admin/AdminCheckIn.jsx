@@ -1,19 +1,194 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../../api.js';
 
-export default function AdminCheckIn(){
-  const [forum,setForum]=useState('india'),[dashboard,setDashboard]=useState({counts:{},recent:[]}),[query,setQuery]=useState(''),[results,setResults]=useState([]),[message,setMessage]=useState(null),[camera,setCamera]=useState(false);
-  const videoRef=useRef(null),streamRef=useRef(null),busyRef=useRef(false);
-  const load=useCallback(()=>api(`/admin/check-in/dashboard?forum=${forum}`).then(setDashboard),[forum]);
-  useEffect(()=>{load().catch(error=>setMessage({type:'error',text:error.message}))},[load]);
-  useEffect(()=>{if(query.trim().length<2){setResults([]);return}const timer=setTimeout(()=>api(`/admin/check-in/search?forum=${forum}&q=${encodeURIComponent(query)}`).then(setResults).catch(error=>setMessage({type:'error',text:error.message})),250);return()=>clearTimeout(timer)},[query,forum]);
-  async function scan(body){if(busyRef.current)return;busyRef.current=true;try{const data=await api('/admin/check-in/scan',{method:'POST',body:JSON.stringify(body)});setMessage({type:'success',text:`Checked in: ${data.pass.full_name||data.pass.pass_number}`});await load()}catch(error){setMessage({type:'error',text:error.message})}finally{setTimeout(()=>{busyRef.current=false},1500)}}
-  async function startCamera(){
-    if(!('BarcodeDetector'in window)){setMessage({type:'error',text:'This browser does not support camera QR detection. Use Chrome/Edge or manual search.'});return}
-    try{const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}});streamRef.current=stream;videoRef.current.srcObject=stream;setCamera(true);const detector=new window.BarcodeDetector({formats:['qr_code']});const tick=async()=>{if(!streamRef.current)return;try{const codes=await detector.detect(videoRef.current);if(codes[0]?.rawValue)await scan({value:codes[0].rawValue})}catch{/* camera frame not ready */}requestAnimationFrame(tick)};requestAnimationFrame(tick)}catch(error){setMessage({type:'error',text:`Camera unavailable: ${error.message}`})}
+export default function AdminCheckIn() {
+  const [forum, setForum] = useState('india'),
+    [dashboard, setDashboard] = useState({ counts: {}, recent: [] }),
+    [query, setQuery] = useState(''),
+    [results, setResults] = useState([]),
+    [message, setMessage] = useState(null),
+    [camera, setCamera] = useState(false);
+  const videoRef = useRef(null),
+    streamRef = useRef(null),
+    busyRef = useRef(false);
+  const load = useCallback(() => api(`/admin/check-in/dashboard?forum=${forum}`).then(setDashboard), [forum]);
+  useEffect(() => {
+    load().catch((error) => setMessage({ type: 'error', text: error.message }));
+  }, [load]);
+  useEffect(() => {
+    if (query.trim().length < 2) {
+      setResults([]);
+      return;
+    }
+    const timer = setTimeout(
+      () =>
+        api(`/admin/check-in/search?forum=${forum}&q=${encodeURIComponent(query)}`)
+          .then(setResults)
+          .catch((error) => setMessage({ type: 'error', text: error.message })),
+      250,
+    );
+    return () => clearTimeout(timer);
+  }, [query, forum]);
+  async function scan(body) {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    try {
+      const data = await api('/admin/check-in/scan', { method: 'POST', body: JSON.stringify(body) });
+      setMessage({ type: 'success', text: `Checked in: ${data.pass.full_name || data.pass.pass_number}` });
+      await load();
+    } catch (error) {
+      setMessage({ type: 'error', text: error.message });
+    } finally {
+      setTimeout(() => {
+        busyRef.current = false;
+      }, 1500);
+    }
   }
-  function stopCamera(){streamRef.current?.getTracks().forEach(track=>track.stop());streamRef.current=null;setCamera(false)}
-  useEffect(()=>()=>streamRef.current?.getTracks().forEach(track=>track.stop()),[]);
-  const c=dashboard.counts||{};
-  return <section className="checkin-admin"><div className="forum-picker"><button className={forum==='india'?'active':''} onClick={()=>setForum('india')}>India Forum</button><button className={forum==='south'?'active':''} onClick={()=>setForum('south')}>South Forum</button></div><div className="checkin-stats"><div><b>{Number(c.issued)||0}</b><span>Passes issued</span></div><div><b>{Number(c.checked_in)||0}</b><span>Checked in</span></div><div><b>{Number(c.remaining)||0}</b><span>Remaining</span></div></div>{message&&<div className={`scan-message ${message.type}`}>{message.text}</div>}<div className="checkin-grid"><article className="admin-card"><h2>Scan QR code</h2><p>Use the rear camera at the entrance. Every scan is logged and duplicate entry is blocked.</p><video ref={videoRef} autoPlay playsInline muted className={camera?'scanner-video':'scanner-video hidden'}/>{camera?<button className="button small secondary" onClick={stopCamera}>Stop camera</button>:<button className="button small" onClick={startCamera}>Start camera</button>}</article><article className="admin-card"><h2>Manual attendee search</h2><label>Name, email, phone, company or pass number<input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Start typing…"/></label><div className="search-results">{results.map(row=><div key={row.pass_number}><span><b>{row.full_name||'Delegate'}</b><small>{row.company} · {row.pass_number}</small></span><button className="button small" disabled={row.status!=='active'} onClick={()=>scan({pass_number:row.pass_number})}>{row.status==='active'?'Check in':row.status.replace('_',' ')}</button></div>)}</div></article></div><div className="admin-heading"><h2>Recent check-ins</h2><a className="button small" href={`/api/admin/check-in/export.csv?forum=${forum}`}>Export CSV</a></div><div className="table-wrap"><table><thead><tr><th>Time</th><th>Delegate</th><th>Company</th><th>Pass</th><th>Staff</th></tr></thead><tbody>{dashboard.recent?.map(row=><tr key={`${row.pass_number}-${row.checked_in_at}`}><td>{new Date(row.checked_in_at).toLocaleString()}</td><td>{row.full_name}</td><td>{row.company}</td><td>{row.pass_number}</td><td>{row.checked_in_by}</td></tr>)}</tbody></table></div></section>;
+  async function startCamera() {
+    if (!('BarcodeDetector' in window)) {
+      setMessage({
+        type: 'error',
+        text: 'This browser does not support camera QR detection. Use Chrome/Edge or manual search.',
+      });
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+      });
+      streamRef.current = stream;
+      videoRef.current.srcObject = stream;
+      setCamera(true);
+      const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+      const tick = async () => {
+        if (!streamRef.current) return;
+        try {
+          const codes = await detector.detect(videoRef.current);
+          if (codes[0]?.rawValue) await scan({ value: codes[0].rawValue });
+        } catch {
+          /* camera frame not ready */
+        }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    } catch (error) {
+      setMessage({ type: 'error', text: `Camera unavailable: ${error.message}` });
+    }
+  }
+  function stopCamera() {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    setCamera(false);
+  }
+  useEffect(() => () => streamRef.current?.getTracks().forEach((track) => track.stop()), []);
+  const c = dashboard.counts || {};
+  return (
+    <section className="checkin-admin">
+      <div className="forum-picker">
+        <button className={forum === 'india' ? 'active' : ''} onClick={() => setForum('india')}>
+          India Forum
+        </button>
+        <button className={forum === 'south' ? 'active' : ''} onClick={() => setForum('south')}>
+          South Forum
+        </button>
+      </div>
+      <div className="checkin-stats">
+        <div>
+          <b>{Number(c.issued) || 0}</b>
+          <span>Passes issued</span>
+        </div>
+        <div>
+          <b>{Number(c.checked_in) || 0}</b>
+          <span>Checked in</span>
+        </div>
+        <div>
+          <b>{Number(c.remaining) || 0}</b>
+          <span>Remaining</span>
+        </div>
+      </div>
+      {message && <div className={`scan-message ${message.type}`}>{message.text}</div>}
+      <div className="checkin-grid">
+        <article className="admin-card">
+          <h2>Scan QR code</h2>
+          <p>Use the rear camera at the entrance. Every scan is logged and duplicate entry is blocked.</p>
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className={camera ? 'scanner-video' : 'scanner-video hidden'}
+          />
+          {camera ? (
+            <button className="button small secondary" onClick={stopCamera}>
+              Stop camera
+            </button>
+          ) : (
+            <button className="button small" onClick={startCamera}>
+              Start camera
+            </button>
+          )}
+        </article>
+        <article className="admin-card">
+          <h2>Manual attendee search</h2>
+          <label>
+            Name, email, phone, company or pass number
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Start typing…"
+            />
+          </label>
+          <div className="search-results">
+            {results.map((row) => (
+              <div key={row.pass_number}>
+                <span>
+                  <b>{row.full_name || 'Delegate'}</b>
+                  <small>
+                    {row.company} · {row.pass_number}
+                  </small>
+                </span>
+                <button
+                  className="button small"
+                  disabled={row.status !== 'active'}
+                  onClick={() => scan({ pass_number: row.pass_number })}
+                >
+                  {row.status === 'active' ? 'Check in' : row.status.replace('_', ' ')}
+                </button>
+              </div>
+            ))}
+          </div>
+        </article>
+      </div>
+      <div className="admin-heading">
+        <h2>Recent check-ins</h2>
+        <a className="button small" href={`/api/admin/check-in/export.csv?forum=${forum}`}>
+          Export CSV
+        </a>
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Delegate</th>
+              <th>Company</th>
+              <th>Pass</th>
+              <th>Staff</th>
+            </tr>
+          </thead>
+          <tbody>
+            {dashboard.recent?.map((row) => (
+              <tr key={`${row.pass_number}-${row.checked_in_at}`}>
+                <td>{new Date(row.checked_in_at).toLocaleString()}</td>
+                <td>{row.full_name}</td>
+                <td>{row.company}</td>
+                <td>{row.pass_number}</td>
+                <td>{row.checked_in_by}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
 }

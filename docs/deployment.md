@@ -12,7 +12,7 @@ No production change has been made. Inspect the current instance first with read
 
 ## Build and service
 
-Run `npm ci`, `npm run build`, migrations, then start `server/src/index.js`. A systemd service is preferred:
+Run `npm ci`, `npm run lint`, `npm test`, `npm run build`, take a database backup, run `npm run migrate -w server`, then start `server/src/index.js`. Copy `server/.env.production.example` to the protected environment file and replace every placeholder. A systemd service is preferred:
 
 ```ini
 [Unit]
@@ -78,6 +78,7 @@ Use Certbot or the instance's existing certificate workflow only after the vhost
 - Keep versioned releases (`releases/<timestamp>`) with an atomic `current` symlink.
 - Before migration, dump the application database and record the current release.
 - Rollback: point `current` to the previous release, restart the service, and restore the database only if the migration is not backward-compatible.
-- Health check: `GET /api/health`; monitor status, latency, disk, memory, Node restarts, Nginx 5xx, and database errors.
+- Liveness check: `GET /api/health`. Readiness check: `GET /api/ready` (database, current schema, and media storage); route traffic only when readiness returns HTTP 200.
+- Monitor latency, disk, memory, Node restarts, Nginx 5xx, failed `email_jobs`, failed `payment_events`, and database errors.
 
 Production DNS, WordPress removal, payment activation, and database cutover require explicit authorization after staging sign-off.

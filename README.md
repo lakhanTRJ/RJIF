@@ -22,3 +22,5 @@ npm run create-admin -w server -- --email you@example.com
 ```
 
 See [local setup](docs/setup.md), [deployment](docs/deployment.md), and [unresolved gaps](docs/unresolved-gaps.md).
+
+Before a live release, complete every item in the [production launch checklist](docs/production-checklist.md). For future content and code changes, use the [website editing guide](docs/editing-guide.md). The server intentionally refuses to start in production when security-critical payment, email, origin, proxy, session, or QR-signing settings are missing.

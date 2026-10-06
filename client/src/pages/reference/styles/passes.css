@@ -1,0 +1,70 @@
+/*
+ * PASS COLOURS
+ * Change these variables to restyle every delegate-pass surface.
+ * This file loads after the shared styles, so these values take priority.
+ */
+:root {
+  /* Background behind all pass cards. */
+  --passes-section-background: #ffffff;
+
+  /* Individual ticket card. Change text too when using a light card. */
+  --pass-card-background: #272122;
+  --pass-card-text: #ffffff;
+
+  /* Booking button at the bottom of each ticket. */
+  --pass-card-accent: #272122;
+  --pass-card-accent-text: #ffffff;
+
+  /* Keep this equal to the section background for clean ticket cut-outs. */
+  --pass-cutout-background: var(--passes-section-background);
+
+  /* Checkout summary card. */
+  --checkout-pass-background: #ffffff;
+  --checkout-pass-text: #282222;
+
+  /* Pass containing the attendee QR code. */
+  --digital-pass-background: #ffffff;
+  --digital-pass-header-background: #c91622;
+  --digital-pass-header-text: #ffffff;
+}
+
+/* Delegate-pass cards on the India and South Forum homepages. */
+.reference-site .passes {
+  background: var(--passes-section-background);
+}
+
+.reference-site .passes article {
+  background: var(--pass-card-background);
+  color: var(--pass-card-text);
+}
+
+.reference-site .passes article::before {
+  background: var(--pass-cutout-background);
+}
+
+.reference-site .passes article::after {
+  background:
+    radial-gradient(circle at 0 50%, var(--pass-cutout-background) 0 18px, transparent 19px),
+    radial-gradient(circle at 100% 50%, var(--pass-cutout-background) 0 18px, transparent 19px);
+}
+
+.reference-site .passes article > a {
+  background: var(--pass-card-accent);
+  color: var(--pass-card-accent-text);
+}
+
+/* Selected-pass summary on the checkout page. */
+.reference-site .checkout-summary {
+  background: var(--checkout-pass-background);
+  color: var(--checkout-pass-text);
+}
+
+/* QR pass shown after a successful registration. */
+.reference-site .digital-pass {
+  background: var(--digital-pass-background);
+}
+
+.reference-site .digital-pass header {
+  background: var(--digital-pass-header-background);
+  color: var(--digital-pass-header-text);
+}

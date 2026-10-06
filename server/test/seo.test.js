@@ -7,7 +7,12 @@ test('escapeHtml encodes metadata-sensitive characters', () => {
 });
 
 test('injectSeo adds canonical metadata and staging noindex', () => {
-  const output = injectSeo('<html><head><title>Old</title></head><body><div id="root"></div></body></html>', { path: '/speakers/', title: 'Speakers', seo_description: 'Directory' }, 'https://example.com/', true);
+  const output = injectSeo(
+    '<html><head><title>Old</title></head><body><div id="root"></div></body></html>',
+    { path: '/speakers/', title: 'Speakers', seo_description: 'Directory' },
+    'https://example.com/',
+    true,
+  );
   assert.match(output, /<title>Speakers<\/title>/);
   assert.match(output, /https:\/\/example\.com\/speakers\//);
   assert.match(output, /noindex,nofollow/);

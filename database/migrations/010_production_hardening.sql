@@ -60,3 +60,22 @@ CREATE TABLE IF NOT EXISTS admin_audit_log (
 UPDATE commerce_products
 SET is_active=0
 WHERE sale_price_paise=0 AND complimentary_token_hash IS NULL;
+
+INSERT INTO forms (form_key,title,fields,success_message,notification_email,is_active)
+VALUES (
+  'contact',
+  'Website enquiry',
+  JSON_ARRAY(
+    JSON_OBJECT('name','name','type','text','required',TRUE,'maxLength',200),
+    JSON_OBJECT('name','company','type','text','required',TRUE,'maxLength',200),
+    JSON_OBJECT('name','email','type','email','required',TRUE,'maxLength',255),
+    JSON_OBJECT('name','phone','type','text','required',TRUE,'maxLength',50),
+    JSON_OBJECT('name','message','type','textarea','required',FALSE,'maxLength',2000),
+    JSON_OBJECT('name','enquiry_type','type','text','required',FALSE,'maxLength',120),
+    JSON_OBJECT('name','consent','type','text','required',TRUE,'maxLength',20)
+  ),
+  'Thank you. Our team will contact you shortly.',
+  NULL,
+  TRUE
+)
+ON DUPLICATE KEY UPDATE fields=VALUES(fields), success_message=VALUES(success_message), is_active=TRUE;

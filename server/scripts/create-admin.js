@@ -10,6 +10,9 @@ const password = await rl.question('New password (minimum 12 characters): ');
 rl.close();
 if (password.length < 12) throw new Error('Password must be at least 12 characters');
 const hash = await bcrypt.hash(password, 12);
-await query('INSERT INTO admin_users (email, password_hash, role) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE password_hash=VALUES(password_hash), role=VALUES(role), is_active=1', [emailArg.toLowerCase(), hash, 'administrator']);
-await pool.end(); console.log(`Administrator ready: ${emailArg.toLowerCase()}`);
-
+await query(
+  'INSERT INTO admin_users (email, password_hash, role) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE password_hash=VALUES(password_hash), role=VALUES(role), is_active=1',
+  [emailArg.toLowerCase(), hash, 'administrator'],
+);
+await pool.end();
+console.log(`Administrator ready: ${emailArg.toLowerCase()}`);

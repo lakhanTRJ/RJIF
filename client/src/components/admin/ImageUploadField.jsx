@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../../api.js';
 
-export default function ImageUploadField({ label = 'Image', value = '', onChange, name, required = false, altText = '' }) {
+export default function ImageUploadField({
+  label = 'Image',
+  value = '',
+  onChange,
+  name,
+  required = false,
+  altText = '',
+}) {
   const [uploadedUrl, setUploadedUrl] = useState(value);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -12,7 +19,10 @@ export default function ImageUploadField({ label = 'Image', value = '', onChange
     if (onChange) return undefined;
     const form = rootRef.current?.closest('form');
     if (!form) return undefined;
-    const reset = () => { setUploadedUrl(value); setError(''); };
+    const reset = () => {
+      setUploadedUrl(value);
+      setError('');
+    };
     form.addEventListener('reset', reset);
     return () => form.removeEventListener('reset', reset);
   }, [onChange, value]);
@@ -36,11 +46,26 @@ export default function ImageUploadField({ label = 'Image', value = '', onChange
     }
   }
 
-  return <div className="admin-image-upload" ref={rootRef}>
-    <label>{label}<input type="file" accept="image/jpeg,image/png,image/webp" required={required && !currentUrl} onChange={upload}/></label>
-    {name && <input type="hidden" name={name} value={currentUrl || ''}/>} 
-    {busy && <small>Uploading image…</small>}
-    {error && <small className="error">{error}</small>}
-    {currentUrl && <div className="admin-image-preview"><img src={currentUrl} alt="Uploaded preview"/><span>Image uploaded and ready to save.</span></div>}
-  </div>;
+  return (
+    <div className="admin-image-upload" ref={rootRef}>
+      <label>
+        {label}
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          required={required && !currentUrl}
+          onChange={upload}
+        />
+      </label>
+      {name && <input type="hidden" name={name} value={currentUrl || ''} />}
+      {busy && <small>Uploading image…</small>}
+      {error && <small className="error">{error}</small>}
+      {currentUrl && (
+        <div className="admin-image-preview">
+          <img src={currentUrl} alt="Uploaded preview" />
+          <span>Image uploaded and ready to save.</span>
+        </div>
+      )}
+    </div>
+  );
 }
