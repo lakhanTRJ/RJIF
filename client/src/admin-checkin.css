@@ -36,9 +36,33 @@
   display: none;
 }
 .scan-message {
+  display: flex;
+  align-items: center;
+  gap: 14px;
   padding: 16px 20px;
   margin: 16px 0;
   font-weight: 700;
+}
+.scan-message > span:last-child,
+.scan-message strong {
+  display: block;
+}
+.scan-message > span:last-child > span {
+  display: block;
+  margin-top: 2px;
+  font-weight: 500;
+}
+.scan-success-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #17833b;
+  color: #fff;
+  font-size: 26px;
+  line-height: 1;
 }
 .scan-message.success {
   background: #e4f5e9;

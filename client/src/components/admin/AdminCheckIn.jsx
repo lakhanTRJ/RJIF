@@ -34,7 +34,12 @@ export default function AdminCheckIn() {
     busyRef.current = true;
     try {
       const data = await api('/admin/check-in/scan', { method: 'POST', body: JSON.stringify(body) });
-      setMessage({ type: 'success', text: `Checked in: ${data.pass.full_name || data.pass.pass_number}` });
+      stopCamera();
+      setMessage({
+        type: 'success',
+        title: 'Checked in successfully',
+        text: data.pass.full_name || data.pass.pass_number,
+      });
       await load();
     } catch (error) {
       setMessage({ type: 'error', text: error.message });
@@ -53,6 +58,7 @@ export default function AdminCheckIn() {
       return;
     }
     try {
+      setMessage(null);
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: 'environment' } },
       });
@@ -106,7 +112,15 @@ export default function AdminCheckIn() {
           <span>Remaining</span>
         </div>
       </div>
-      {message && <div className={`scan-message ${message.type}`}>{message.text}</div>}
+      {message && (
+        <div className={`scan-message ${message.type}`} role="status" aria-live="polite">
+          {message.type === 'success' && <span className="scan-success-icon">✓</span>}
+          <span>
+            {message.title && <strong>{message.title}</strong>}
+            <span>{message.text}</span>
+          </span>
+        </div>
+      )}
       <div className="checkin-grid">
         <article className="admin-card">
           <h2>Scan QR code</h2>
