@@ -250,9 +250,25 @@
 .admin-content .button {
   border-radius: 8px;
   background: var(--admin-red);
+  color: #fff;
 }
 .admin-content .button:hover {
   background: var(--admin-red-dark);
+  color: #fff;
+}
+.admin-content .button.secondary {
+  border: 1px solid var(--admin-red);
+  background: #fff;
+  color: var(--admin-red-dark);
+}
+.admin-content .button.secondary:hover {
+  border-color: var(--admin-red-dark);
+  background: #fff1f2;
+  color: var(--admin-red-dark);
+}
+.admin-content .button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 @media (max-width: 900px) {

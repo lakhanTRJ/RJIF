@@ -8,11 +8,11 @@
   --passes-section-background: #ffffff;
 
   /* Individual ticket card. Change text too when using a light card. */
-  --pass-card-background: #272122;
+  --pass-card-background: #cf181d;
   --pass-card-text: #ffffff;
 
   /* Booking button at the bottom of each ticket. */
-  --pass-card-accent: #272122;
+  --pass-card-accent: #cf181d;
   --pass-card-accent-text: #ffffff;
 
   /* Keep this equal to the section background for clean ticket cut-outs. */

@@ -36,7 +36,7 @@ RAZORPAY_WEBHOOK_SECRET=a separate random webhook secret
 The key ID is safe to expose to the browser during checkout; the key secret and webhook secret must remain server-only. The staging webhook URL will be:
 
 ```text
-https://STAGING_HOST/api/payments/razorpay/webhook
+https://STAGING_HOST/api/public/payments/razorpay/webhook
 ```
 
 The webhook should initially subscribe to `payment.captured`, `payment.failed`, `order.paid`, and refund events if refunds will be managed through Razorpay. Test credentials must not be reused in production.

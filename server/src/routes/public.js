@@ -332,34 +332,30 @@ publicRouter.post('/checkout', checkoutLimiter, async (req, res, next) => {
     } else {
       gateway = await createRazorpayOrder({ total, currency: product.currency, publicId });
       if (!gateway)
-        return res
-          .status(503)
-          .json({
-            error: 'Payment service is temporarily unavailable',
-            manageUrl: `/registration/?token=${encodeURIComponent(orderToken(publicId))}`,
-          });
+        return res.status(503).json({
+          error: 'Payment service is temporarily unavailable',
+          manageUrl: `/registration/?token=${encodeURIComponent(orderToken(publicId))}`,
+        });
       await query("UPDATE commerce_orders SET status='payment_created',provider_order_id=? WHERE id=?", [
         gateway.id,
         result.insertId,
       ]);
     }
-    res
-      .status(201)
-      .json(
-        checkoutPayload(
-          {
-            public_id: publicId,
-            total_paise: total,
-            currency: product.currency,
-            customer_name: customerName,
-            email,
-            phone,
-            status: total === 0 ? 'paid' : 'payment_created',
-          },
-          product,
-          gateway,
-        ),
-      );
+    res.status(201).json(
+      checkoutPayload(
+        {
+          public_id: publicId,
+          total_paise: total,
+          currency: product.currency,
+          customer_name: customerName,
+          email,
+          phone,
+          status: total === 0 ? 'paid' : 'payment_created',
+        },
+        product,
+        gateway,
+      ),
+    );
   } catch (error) {
     try {
       await connection.rollback();
@@ -726,13 +722,11 @@ publicRouter.post('/award-applications', awardLimiter, async (req, res, next) =>
         text('billing_address', 2000) || null,
       ],
     );
-    res
-      .status(201)
-      .json({
-        applicationId: publicId,
-        status: 'payment_pending',
-        checkoutUrl: `/checkout/?pass=awards-registration&application=${encodeURIComponent(publicId)}`,
-      });
+    res.status(201).json({
+      applicationId: publicId,
+      status: 'payment_pending',
+      checkoutUrl: `/checkout/?pass=awards-registration&application=${encodeURIComponent(publicId)}`,
+    });
   } catch (error) {
     next(error);
   }
