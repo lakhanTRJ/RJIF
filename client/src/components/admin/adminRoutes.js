@@ -32,7 +32,7 @@ export const adminRouteGroups = [
     items: [
       ['pages', 'SEO & publishing', 'Search titles and page visibility'],
       ['footer', 'Footer & social links', 'Contact identity and social profiles'],
-      ['media', 'Media library', 'Upload and reuse website images'],
+      ['media', 'Media library', 'Upload and reuse website images and PDF documents'],
     ],
   },
 ];

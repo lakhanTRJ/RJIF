@@ -101,6 +101,53 @@
   color: #555;
   font-size: 12px;
 }
+.admin-document-upload {
+  display: grid;
+  gap: 8px;
+  margin: 4px 0 14px;
+}
+.admin-document-upload > label {
+  margin: 0;
+}
+.admin-document-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #fff;
+}
+.admin-document-preview > span {
+  padding: 6px 8px;
+  border-radius: 5px;
+  background: #cf181d;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+}
+.media-document {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 16px;
+  background: #f8ecec;
+  color: #8f1115;
+  text-align: center;
+}
+.media-document b {
+  font-size: 32px;
+}
+.media-document small {
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+}
+.media-list .button {
+  width: 100%;
+  margin-top: 8px;
+}
 .button.secondary {
   background: #fff;
   color: #cf181d;

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
 import ImageUploadField from '../components/admin/ImageUploadField.jsx';
+import DocumentUploadField from '../components/admin/DocumentUploadField.jsx';
 import AdminCheckIn from '../components/admin/AdminCheckIn.jsx';
 import AdminNavigation from '../components/admin/AdminNavigation.jsx';
 import { adminRoutes } from '../components/admin/adminRoutes.js';
@@ -214,6 +215,12 @@ function NormalAccordionEditor({ value, onChange }) {
           <Input
             label="Optional link URL"
             value={group.link || ''}
+            onChange={(link) => changeList('groups', index, { link })}
+          />
+          <DocumentUploadField
+            label="Or upload a PDF for this link"
+            value={group.link || ''}
+            title={group.title || `Business Excellence Awards content block ${index + 1}`}
             onChange={(link) => changeList('groups', index, { link })}
           />
           <Input
@@ -1635,11 +1642,16 @@ export default function AdminPanel() {
           <section>
             <form className="admin-card media-form" onSubmit={uploadMedia}>
               <label>
-                Image
-                <input type="file" name="file" accept="image/jpeg,image/png,image/webp" required />
+                Image or PDF
+                <input
+                  type="file"
+                  name="file"
+                  accept="image/jpeg,image/png,image/webp,application/pdf,.pdf"
+                  required
+                />
               </label>
               <label>
-                Alt text
+                Description / alt text
                 <input name="alt_text" required />
               </label>
               <label>
@@ -1655,9 +1667,31 @@ export default function AdminPanel() {
             <div className="media-list">
               {media.map((item) => (
                 <div key={item.id}>
-                  <img src={`/media/${item.storage_key}`} alt={item.alt_text} />
+                  {item.mime_type === 'application/pdf' ? (
+                    <a
+                      className="media-document"
+                      href={`/media/${item.storage_key}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <b>PDF</b>
+                      <small>{item.file_name}</small>
+                    </a>
+                  ) : (
+                    <img src={`/media/${item.storage_key}`} alt={item.alt_text} />
+                  )}
                   <span>{item.alt_text}</span>
                   <code>/media/{item.storage_key}</code>
+                  <button
+                    type="button"
+                    className="button small secondary"
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(`/media/${item.storage_key}`);
+                      notify('Media link copied.');
+                    }}
+                  >
+                    Copy link
+                  </button>
                 </div>
               ))}
             </div>

@@ -9,6 +9,7 @@ import sanitizeHtml from 'sanitize-html';
 import { query } from '../db.js';
 import { issueCsrf, requireAdmin, requireAdministrator, requireCsrf } from '../security.js';
 import { config } from '../config.js';
+import { detectMediaMime } from '../mediaValidation.js';
 import {
   getPassByToken,
   issuePassesForOrder,
@@ -38,37 +39,37 @@ const loginLimiter = rateLimit({
   legacyHeaders: false,
 });
 fs.mkdirSync(path.resolve(config.uploadDir), { recursive: true });
-const allowedMime = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const imageExtensions = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
-function detectedImageMime(filePath) {
-  const bytes = fs.readFileSync(filePath).subarray(0, 12);
-  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg';
-  if (bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])))
-    return 'image/png';
-  if (
-    bytes.length >= 12 &&
-    bytes.toString('ascii', 0, 4) === 'RIFF' &&
-    bytes.toString('ascii', 8, 12) === 'WEBP'
-  )
-    return 'image/webp';
-  return '';
-}
+const allowedMime = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
+const mediaExtensions = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'application/pdf': '.pdf',
+};
 const upload = multer({
   storage: multer.diskStorage({
     destination: path.resolve(config.uploadDir),
     filename: (req, file, callback) =>
       callback(
         null,
-        `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${imageExtensions[file.mimetype] || ''}`,
+        `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${mediaExtensions[file.mimetype] || ''}`,
       ),
   }),
   limits: { fileSize: config.maxUploadMb * 1024 * 1024, files: 1 },
   fileFilter: (req, file, callback) =>
     callback(
-      allowedMime.has(file.mimetype) ? null : new Error('Only JPEG, PNG, and WebP images are allowed'),
+      allowedMime.has(file.mimetype)
+        ? null
+        : new Error('Only JPEG, PNG, WebP, and PDF files are allowed'),
       allowedMime.has(file.mimetype),
     ),
 });
+const uploadMedia = (req, res, next) =>
+  upload.single('file')(req, res, (error) => {
+    if (!error) return next();
+    const status = error.code === 'LIMIT_FILE_SIZE' ? 413 : 422;
+    return res.status(status).json({ error: error.message });
+  });
 
 adminRouter.post('/login', loginLimiter, async (req, res, next) => {
   try {
@@ -209,12 +210,12 @@ adminRouter.get('/media', requireAdmin, async (req, res, next) => {
     next(e);
   }
 });
-adminRouter.post('/media', requireAdmin, requireCsrf, upload.single('file'), async (req, res, next) => {
+adminRouter.post('/media', requireAdmin, requireCsrf, uploadMedia, async (req, res, next) => {
   try {
-    if (!req.file) return res.status(422).json({ error: 'Choose an image' });
-    if (detectedImageMime(req.file.path) !== req.file.mimetype) {
+    if (!req.file) return res.status(422).json({ error: 'Choose an image or PDF' });
+    if (detectMediaMime(fs.readFileSync(req.file.path)) !== req.file.mimetype) {
       fs.unlink(req.file.path, () => {});
-      return res.status(422).json({ error: 'The uploaded file content does not match its image type' });
+      return res.status(422).json({ error: 'The uploaded file content does not match its file type' });
     }
     const alt = String(req.body.alt_text || '').trim();
     if (!alt) {
@@ -235,7 +236,7 @@ adminRouter.post('/media', requireAdmin, requireCsrf, upload.single('file'), asy
         req.session.adminId,
       ],
     );
-    res.status(201).json({ id: result.insertId, url: `/media/${storageKey}` });
+    res.status(201).json({ id: result.insertId, url: `/media/${storageKey}`, mimeType: req.file.mimetype });
   } catch (e) {
     if (req.file) fs.unlink(req.file.path, () => {});
     next(e);
