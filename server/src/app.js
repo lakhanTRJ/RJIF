@@ -89,7 +89,7 @@ export function createApp() {
   app.get('/api/ready', async (req, res) => {
     try {
       const [rows] = await pool.query(
-        "SELECT id FROM schema_migrations WHERE id='012_article_categories.sql' LIMIT 1",
+        "SELECT id FROM schema_migrations WHERE id='013_felicitation_settings.sql' LIMIT 1",
       );
       await fs.access(path.resolve(config.uploadDir));
       if (!rows.length) throw new Error('Database migrations are incomplete');

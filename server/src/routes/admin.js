@@ -344,6 +344,32 @@ adminRouter.put('/awards', requireAdmin, requireCsrf, async (req, res, next) => 
   }
 });
 
+adminRouter.get('/felicitation', requireAdmin, async (req, res, next) => {
+  try {
+    const settings = (
+      await query('SELECT hero_youtube_url,updated_at FROM felicitation_settings WHERE id=1 LIMIT 1')
+    )[0] || { hero_youtube_url: '' };
+    res.json(settings);
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.put('/felicitation', requireAdmin, requireCsrf, async (req, res, next) => {
+  try {
+    const heroYoutubeUrl = String(req.body?.hero_youtube_url || '').trim();
+    if (heroYoutubeUrl.length > 1000)
+      return res.status(422).json({ error: 'The YouTube URL is too long' });
+    await query(
+      'INSERT INTO felicitation_settings (id,hero_youtube_url,updated_by) VALUES (1,?,?) ON DUPLICATE KEY UPDATE hero_youtube_url=VALUES(hero_youtube_url),updated_by=VALUES(updated_by)',
+      [heroYoutubeUrl, req.session.adminId],
+    );
+    res.json({ ok: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
 adminRouter.put('/products/:id', requireAdministrator, requireCsrf, async (req, res, next) => {
   try {
     const regular =

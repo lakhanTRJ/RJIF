@@ -322,13 +322,7 @@
   margin: 8px 0;
 }
 
-.felicitation-hero {
-  height: 520px;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  border-radius: 0 0 45px 45px;
-  padding: 50px;
+.felicitation-video-hero {
   background-position: center;
   background-size: cover;
 }
@@ -1220,11 +1214,6 @@
   .partner-cta > div + div {
     border-top: 10px solid #cf181d;
     border-left: 0;
-  }
-
-  .felicitation-hero {
-    height: 250px;
-    padding: 28px;
   }
 
   .felicitation-banner {

@@ -297,6 +297,7 @@ export default function AdminPanel() {
     content: { heroYoutubeUrl: '', partnerLabel: 'Associate Partner', partnerLogoUrl: '', accordions: [] },
     applications: [],
   });
+  const [felicitation, setFelicitation] = useState({ hero_youtube_url: '' });
   const [content, setContent] = useState({ settings: {}, speakers: [], agenda: [], gallery: [] });
   const notify = (message) => setNotice(message);
   const update = (key, index, patch) =>
@@ -327,6 +328,7 @@ export default function AdminPanel() {
       passes: () => api('/admin/products').then(setProducts),
       highlights: () => api('/admin/highlights').then(setHighlights),
       awards: () => api('/admin/awards').then(setAwards),
+      felicitation: () => api('/admin/felicitation').then(setFelicitation),
       articles: () => api('/admin/articles').then(setArticles),
       media: () => api('/admin/media').then(setMedia),
       submissions: () => api('/admin/submissions').then(setSubmissions),
@@ -1534,6 +1536,35 @@ export default function AdminPanel() {
             ) : (
               <p>No award registrations yet.</p>
             )}
+          </section>
+        )}
+
+        {section === 'felicitation' && (
+          <section>
+            <p>
+              Add the YouTube video shown as the Circle of Excellence banner. It plays automatically,
+              muted and in a continuous loop without controls.
+            </p>
+            <article className="admin-card">
+              <Input
+                label="Felicitation banner YouTube URL"
+                value={felicitation.hero_youtube_url}
+                onChange={(hero_youtube_url) => setFelicitation({ ...felicitation, hero_youtube_url })}
+              />
+              <small>Paste a YouTube watch, share, Shorts, live or embed URL.</small>
+              <button
+                className="button small"
+                onClick={async () => {
+                  await api('/admin/felicitation', {
+                    method: 'PUT',
+                    body: JSON.stringify(felicitation),
+                  });
+                  notify('Felicitation video banner saved.');
+                }}
+              >
+                Save video banner
+              </button>
+            </article>
           </section>
         )}
 

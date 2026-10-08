@@ -1,3 +1,6 @@
+import { useEffect, useState } from 'react';
+import { api } from '../../api.js';
+
 const galleryFiles = [
   'Excellence-In-Strategic-Brand-Evolution-scaled.jpg',
   'Independent-Retailer-of-the-Year-scaled.jpg',
@@ -12,22 +15,29 @@ const galleryFiles = [
 ];
 
 export default function FelicitationPage({ path, ui }) {
-  const { SiteHeader, Button, Gallery, Contacts, Footer, asset } = ui;
+  const { SiteHeader, YoutubeVideo, Gallery, Contacts, Footer, asset } = ui;
+  const [heroYoutubeUrl, setHeroYoutubeUrl] = useState('');
   const gallery = galleryFiles.map((file) => ({
     image: asset(`2026/03/${file}`),
     alt: 'Retail Jeweller Circle of Excellence recipient',
   }));
 
+  useEffect(() => {
+    api('/public/felicitation')
+      .then((settings) => setHeroYoutubeUrl(settings.heroYoutubeUrl || ''))
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="reference-site felicitation-page">
       <SiteHeader path={path} section="felicitation" />
       <section
-        className="felicitation-hero"
+        className="awards-video-hero felicitation-video-hero"
         style={{ backgroundImage: `url(${asset('2025/07/Leadership-Awards.jpg')})` }}
       >
-        <Button light href="#contact">
-          Nominate Now
-        </Button>
+        {heroYoutubeUrl && (
+          <YoutubeVideo url={heroYoutubeUrl} background title="Circle of Excellence South film" />
+        )}
       </section>
       <section className="felicitation-about" id="about">
         <div className="felicitation-about-visual">

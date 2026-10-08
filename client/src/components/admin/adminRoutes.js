@@ -17,6 +17,7 @@ export const adminRouteGroups = [
       ['highlights', 'Video highlights', 'YouTube covers and links'],
       ['testimonials', 'Testimonials', 'Exhibition testimonial cards'],
       ['awards', 'Business awards', 'Award content and applications'],
+      ['felicitation', 'South felicitation', 'Video banner for Circle of Excellence'],
       ['articles', 'Blog articles', 'Create, schedule and publish stories'],
     ],
   },

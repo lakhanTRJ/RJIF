@@ -666,6 +666,17 @@ publicRouter.get('/awards', async (req, res, next) => {
   }
 });
 
+publicRouter.get('/felicitation', async (req, res, next) => {
+  try {
+    const row = (
+      await query('SELECT hero_youtube_url FROM felicitation_settings WHERE id=1 LIMIT 1')
+    )[0];
+    res.json({ heroYoutubeUrl: row?.hero_youtube_url || '' });
+  } catch (error) {
+    next(error);
+  }
+});
+
 const awardLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 5,
