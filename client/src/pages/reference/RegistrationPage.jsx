@@ -44,7 +44,10 @@ function Registration({ path }) {
         currency: g.currency,
         name: g.name,
         prefill: g.prefill,
-        description: 'Delegate pass registration',
+        description:
+          order.product_kind === 'award_fee'
+            ? 'Business Excellence Awards registration'
+            : 'Delegate pass registration',
         handler: async (response) => {
           await api('/public/payments/razorpay/verify', { method: 'POST', body: JSON.stringify(response) });
           await load();
@@ -110,7 +113,20 @@ function Registration({ path }) {
                 {saving ? 'Opening payment…' : 'Continue secure payment'}
               </button>
             )}
-            {order.passes.length ? (
+            {order.product_kind === 'award_fee' && order.status === 'paid' ? (
+              <div className="award-payment-confirmation">
+                <h2>Application confirmed</h2>
+                <p>Your payment has been received for the following award categories:</p>
+                <ul>
+                  {(order.award_categories || []).map((category) => (
+                    <li key={category}>{category}</li>
+                  ))}
+                </ul>
+                <p>No separate entry fee is charged for the additional categories in this application.</p>
+              </div>
+            ) : order.product_kind === 'award_fee' ? (
+              <p>Your application will be confirmed after payment is completed.</p>
+            ) : order.passes.length ? (
               <div className="pass-links">
                 {order.passes.map((pass) => (
                   <Link className="ref-button" key={pass.pass_number} to={pass.viewUrl}>

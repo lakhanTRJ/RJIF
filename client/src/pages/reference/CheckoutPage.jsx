@@ -92,6 +92,7 @@ function Checkout({ path }) {
     };
   }, [selected, complimentary]);
   const members = Math.max(1, Number(pass?.member_count) || 1);
+  const isAwardRegistration = pass?.kind === 'award_fee' || selected === 'awards-registration';
   const attendeeCount = members * quantity;
   const unitPrice = Number(pass?.sale_price_paise || 0);
   const subtotal = unitPrice * quantity;
@@ -117,7 +118,9 @@ function Checkout({ path }) {
       currency: g.currency,
       name: g.name,
       prefill: g.prefill,
-      description: 'Delegate pass registration',
+      description: isAwardRegistration
+        ? 'Business Excellence Awards registration'
+        : 'Delegate pass registration',
       handler: async (response) => {
         try {
           const confirmed = await api('/public/payments/razorpay/verify', {
@@ -128,7 +131,9 @@ function Checkout({ path }) {
             ...registration,
             status: 'confirmed',
             manageUrl: confirmed.manageUrl,
-            message: 'Payment confirmed. Your QR passes are ready.',
+            message: isAwardRegistration
+              ? 'Payment confirmed. Your award registration has been received.'
+              : 'Payment confirmed. Your QR passes are ready.',
           });
         } catch (e) {
           setError(e.message);
@@ -153,7 +158,7 @@ function Checkout({ path }) {
         method: 'POST',
         body: JSON.stringify({
           product_code: pass.code,
-          quantity,
+          quantity: isAwardRegistration ? 1 : quantity,
           customer_name: data.get('customer_name'),
           company: data.get('company'),
           email: data.get('email'),
@@ -183,7 +188,11 @@ function Checkout({ path }) {
         <header className="checkout-heading">
           <p>Secure registration</p>
           <h1>Complete your booking</h1>
-          <span>Confirmed registrations receive individual QR passes by email.</span>
+          <span>
+            {isAwardRegistration
+              ? 'Complete the payment for your selected award categories.'
+              : 'Confirmed registrations receive individual QR passes by email.'}
+          </span>
         </header>
         {result ? (
           <section className="checkout-result">
@@ -206,48 +215,63 @@ function Checkout({ path }) {
               <h2>{pass.name}</h2>
               {pass.description && <p className="checkout-description">{pass.description}</p>}
               <div className="checkout-pass-meta">
-                <span>
-                  <b>{members}</b>
-                  {members === 1 ? ' attendee' : ' attendees'} per pass
-                </span>
-                <span>
-                  <b>QR</b> digital entry
-                </span>
+                {isAwardRegistration ? (
+                  <>
+                    <span>
+                      <b>1</b> applicant
+                    </span>
+                    <span>
+                      <b>Multiple</b> selected categories
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span>
+                      <b>{members}</b>
+                      {members === 1 ? ' attendee' : ' attendees'} per pass
+                    </span>
+                    <span>
+                      <b>QR</b> digital entry
+                    </span>
+                  </>
+                )}
               </div>
-              <div className="quantity-row">
-                <div>
-                  <b>Quantity</b>
-                  <small>Maximum 20 passes</small>
+              {!isAwardRegistration && (
+                <div className="quantity-row">
+                  <div>
+                    <b>Quantity</b>
+                    <small>Maximum 20 passes</small>
+                  </div>
+                  <div className="quantity-stepper">
+                    <button
+                      type="button"
+                      onClick={() => changeQuantity(quantity - 1)}
+                      disabled={quantity === 1}
+                    >
+                      −
+                    </button>
+                    <input
+                      aria-label="Quantity"
+                      type="number"
+                      min="1"
+                      max="20"
+                      value={quantity}
+                      onChange={(event) => changeQuantity(Number(event.target.value) || 1)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => changeQuantity(quantity + 1)}
+                      disabled={quantity === 20}
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
-                <div className="quantity-stepper">
-                  <button
-                    type="button"
-                    onClick={() => changeQuantity(quantity - 1)}
-                    disabled={quantity === 1}
-                  >
-                    −
-                  </button>
-                  <input
-                    aria-label="Quantity"
-                    type="number"
-                    min="1"
-                    max="20"
-                    value={quantity}
-                    onChange={(event) => changeQuantity(Number(event.target.value) || 1)}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => changeQuantity(quantity + 1)}
-                    disabled={quantity === 20}
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
+              )}
               <div className="price-breakdown">
                 <div>
                   <span>
-                    {money(unitPrice)} × {quantity}
+                    {isAwardRegistration ? 'Registration fee' : `${money(unitPrice)} × ${quantity}`}
                   </span>
                   <b>{money(subtotal)}</b>
                 </div>
@@ -343,9 +367,14 @@ function Checkout({ path }) {
                     ? 'Confirm complimentary pass'
                     : `Continue with ${money(grandTotal)}`}
               </button>
-              {subtotal > 0 && (
+              {subtotal > 0 && !isAwardRegistration && (
                 <small className="checkout-status">
                   Your QR passes are issued only after payment is confirmed.
+                </small>
+              )}
+              {subtotal > 0 && isAwardRegistration && (
+                <small className="checkout-status">
+                  One payment covers this application and all categories selected before checkout.
                 </small>
               )}
             </form>

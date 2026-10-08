@@ -154,6 +154,39 @@ async function fetchRazorpayPayment(paymentId) {
   if (!response.ok) throw new Error('Unable to verify payment with Razorpay');
   return response.json();
 }
+async function queueAwardConfirmationEmail(order) {
+  const application = (
+    await query('SELECT public_id,categories,full_name FROM award_applications WHERE id=? LIMIT 1', [
+      order.award_application_id,
+    ])
+  )[0];
+  if (!application) return;
+  const categories = parseJson(application.categories, []);
+  const text = [
+    `Dear ${application.full_name || order.customer_name},`,
+    '',
+    'Your payment and Business Excellence Awards application have been confirmed.',
+    '',
+    `Application reference: ${application.public_id}`,
+    'Selected categories:',
+    ...categories.map((category) => `- ${category}`),
+    '',
+    'No separate entry fee is charged for the additional categories selected in this application.',
+  ].join('\n');
+  try {
+    await query(
+      "INSERT INTO email_jobs (kind,dedupe_key,order_id,recipient,payload) VALUES ('form_notification',?,?,?,?)",
+      [
+        `award:${order.id}:confirmed`,
+        order.id,
+        order.email,
+        JSON.stringify({ subject: 'Your Business Excellence Awards registration', text }),
+      ],
+    );
+  } catch (error) {
+    if (error.code !== 'ER_DUP_ENTRY') throw error;
+  }
+}
 async function finalizePaidOrder(order, payment) {
   if (
     payment.order_id !== order.provider_order_id ||
@@ -167,10 +200,13 @@ async function finalizePaidOrder(order, payment) {
     "UPDATE commerce_orders SET status='paid',provider_payment_id=?,paid_at=COALESCE(paid_at,NOW()) WHERE id=?",
     [payment.id, order.id],
   );
-  if (order.award_application_id)
+  if (order.award_application_id) {
     await query("UPDATE award_applications SET status='paid' WHERE id=?", [order.award_application_id]);
-  await issuePassesForOrder(order.id);
-  await queuePassEmail(order.id);
+    await queueAwardConfirmationEmail(order);
+  } else {
+    await issuePassesForOrder(order.id);
+    await queuePassEmail(order.id);
+  }
 }
 async function addAttendees(executor, orderId, attendees, limit) {
   const list = Array.isArray(attendees) ? attendees.slice(0, limit) : [];
@@ -216,7 +252,7 @@ publicRouter.post('/checkout', checkoutLimiter, async (req, res, next) => {
   const connection = await pool.getConnection();
   try {
     const code = clean(req.body.product_code, 100),
-      quantity = Math.min(20, Math.max(1, Number(req.body.quantity) || 1)),
+      requestedQuantity = Math.min(20, Math.max(1, Number(req.body.quantity) || 1)),
       idempotencyValue = clean(req.body.idempotency_key, 120);
     if (idempotencyValue.length < 16)
       return res.status(422).json({ error: 'Checkout session is invalid. Refresh and try again.' });
@@ -247,6 +283,7 @@ publicRouter.post('/checkout', checkoutLimiter, async (req, res, next) => {
       await connection.rollback();
       return res.status(404).json({ error: 'This pass is not available' });
     }
+    const quantity = product.kind === 'award_fee' ? 1 : requestedQuantity;
     if (Number(product.sale_price_paise) === 0) {
       const complimentary = String(req.body.complimentary_token || '');
       if (!complimentary || product.complimentary_token_hash !== sha256(complimentary)) {
@@ -315,10 +352,12 @@ publicRouter.post('/checkout', checkoutLimiter, async (req, res, next) => {
         total === 0 ? new Date() : null,
       ],
     );
-    let attendees = Array.isArray(req.body.attendees) ? req.body.attendees : [];
-    const capacity = product.member_count * quantity;
-    if (!attendees.length && capacity === 1) attendees = [{ full_name: customerName, email, phone }];
-    await addAttendees(connection, result.insertId, attendees, capacity);
+    if (product.kind !== 'award_fee') {
+      let attendees = Array.isArray(req.body.attendees) ? req.body.attendees : [];
+      const capacity = product.member_count * quantity;
+      if (!attendees.length && capacity === 1) attendees = [{ full_name: customerName, email, phone }];
+      await addAttendees(connection, result.insertId, attendees, capacity);
+    }
     if (total === 0)
       await connection.execute(
         'UPDATE commerce_products SET redemption_count=redemption_count+? WHERE id=?',
@@ -453,7 +492,7 @@ publicRouter.get('/orders/:token', async (req, res, next) => {
     if (!publicId) return res.status(404).json({ error: 'Registration not found' });
     const order = (
       await query(
-        `SELECT o.id,o.public_id,o.quantity,o.total_paise,o.currency,o.status,o.customer_name,o.company,o.email,p.code AS product_code,p.name AS product_name,p.member_count,p.forum FROM commerce_orders o JOIN commerce_products p ON p.id=o.product_id WHERE o.public_id=? LIMIT 1`,
+        `SELECT o.id,o.public_id,o.quantity,o.total_paise,o.currency,o.status,o.customer_name,o.company,o.email,p.code AS product_code,p.name AS product_name,p.kind AS product_kind,p.member_count,p.forum,aa.categories AS award_categories FROM commerce_orders o JOIN commerce_products p ON p.id=o.product_id LEFT JOIN award_applications aa ON aa.id=o.award_application_id WHERE o.public_id=? LIMIT 1`,
         [publicId],
       )
     )[0];
@@ -468,6 +507,7 @@ publicRouter.get('/orders/:token', async (req, res, next) => {
     );
     res.json({
       ...order,
+      award_categories: parseJson(order.award_categories, []),
       capacity: order.member_count * order.quantity,
       attendees,
       passes: passes.map((p) => ({
