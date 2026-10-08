@@ -5,6 +5,7 @@ import ImageUploadField from '../components/admin/ImageUploadField.jsx';
 import DocumentUploadField from '../components/admin/DocumentUploadField.jsx';
 import AdminCheckIn from '../components/admin/AdminCheckIn.jsx';
 import AdminNavigation from '../components/admin/AdminNavigation.jsx';
+import RichTextEditor from '../components/admin/RichTextEditor.jsx';
 import { adminRoutes } from '../components/admin/adminRoutes.js';
 import '../admin.css';
 import '../admin-updates.css';
@@ -298,6 +299,7 @@ export default function AdminPanel() {
     applications: [],
   });
   const [felicitation, setFelicitation] = useState({ hero_youtube_url: '' });
+  const [newArticleBody, setNewArticleBody] = useState('');
   const [content, setContent] = useState({ settings: {}, speakers: [], agenda: [], gallery: [] });
   const notify = (message) => setNotice(message);
   const update = (key, index, patch) =>
@@ -1593,11 +1595,16 @@ export default function AdminPanel() {
               className="admin-card"
               onSubmit={async (e) => {
                 e.preventDefault();
+                if (!newArticleBody.replace(/<[^>]*>/g, '').trim()) {
+                  notify('Please add the article content.');
+                  return;
+                }
                 await api('/admin/articles', {
                   method: 'POST',
                   body: JSON.stringify(Object.fromEntries(new FormData(e.currentTarget))),
                 });
                 e.currentTarget.reset();
+                setNewArticleBody('');
                 setArticles(await api('/admin/articles'));
                 notify('Draft created.');
               }}
@@ -1619,10 +1626,12 @@ export default function AdminPanel() {
                 <input name="category" placeholder="For example: Industry Insights" required />
               </label>
               <ImageUploadField label="Featured image" name="featured_image_url" required />
-              <label>
-                Article HTML
-                <textarea name="body_html" rows="8" required />
-              </label>
+              <RichTextEditor
+                label="Article content"
+                name="body_html"
+                value={newArticleBody}
+                onChange={setNewArticleBody}
+              />
               <button className="button small">Create draft</button>
             </form>
             <div className="admin-list">
@@ -1632,7 +1641,6 @@ export default function AdminPanel() {
                     ['Title', 'title'],
                     ['Category', 'category'],
                     ['Excerpt', 'excerpt', 'textarea'],
-                    ['Article HTML', 'body_html', 'textarea'],
                     ['SEO title', 'seo_title'],
                     ['SEO description', 'seo_description', 'textarea'],
                   ].map(([label, key, type]) => (
@@ -1646,6 +1654,13 @@ export default function AdminPanel() {
                       }
                     />
                   ))}
+                  <RichTextEditor
+                    label="Article content"
+                    value={a.body_html}
+                    onChange={(body_html) =>
+                      setArticles(articles.map((row, i) => (i === index ? { ...row, body_html } : row)))
+                    }
+                  />
                   <ImageUploadField
                     label="Featured image"
                     value={a.featured_image_url}

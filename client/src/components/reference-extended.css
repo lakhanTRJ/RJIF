@@ -1526,7 +1526,7 @@
   box-shadow: 0 20px 50px #32141617;
 }
 .blog-grid article.featured {
-  grid-column: span 2;
+  grid-column: auto;
 }
 .blog-card-media {
   display: block;
@@ -1567,7 +1567,7 @@
 }
 .blog-card-copy h2 {
   margin: 12px 0;
-  font-size: clamp(24px, 2.2vw, 34px);
+  font-size: clamp(22px, 1.8vw, 28px);
   line-height: 1.18;
 }
 .blog-card-copy > p:not(.blog-meta) {
