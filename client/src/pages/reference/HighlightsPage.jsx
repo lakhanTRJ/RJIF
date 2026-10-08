@@ -85,6 +85,7 @@ export default function HighlightsPage({ path, south = false }) {
   const [activeYear, setActiveYear] = useState(CURRENT_YEAR);
   const [visibleCount, setVisibleCount] = useState(12);
   const [activeVideo, setActiveVideo] = useState(null);
+  const [videoStart, setVideoStart] = useState(0);
   const [lightboxIndex, setLightboxIndex] = useState(null);
 
   useEffect(() => {
@@ -112,9 +113,16 @@ export default function HighlightsPage({ path, south = false }) {
     if (years.length && !years.includes(activeYear)) setActiveYear(years[0]);
   }, [activeYear, years]);
   useEffect(() => setVisibleCount(12), [activeYear]);
+  useEffect(() => setVideoStart(0), [activeYear, videos.length]);
 
   const yearGallery = gallery.filter((item) => Number(item.event_year) === activeYear);
   const yearVideos = videos.filter((item) => Number(item.event_year) === activeYear);
+  const visibleVideos = Array.from(
+    { length: Math.min(3, yearVideos.length) },
+    (_, offset) => yearVideos[(videoStart + offset) % yearVideos.length],
+  );
+  const moveVideos = (direction) =>
+    setVideoStart((index) => (index + direction + yearVideos.length) % yearVideos.length);
   const heroImage = yearGallery[1]?.image || yearGallery[0]?.image || fallbackGallery[0]?.image;
   const featured = yearGallery.slice(0, 5);
   const visibleGallery = yearGallery.slice(0, visibleCount);
@@ -161,9 +169,27 @@ export default function HighlightsPage({ path, south = false }) {
             <div className="edition-heading">
               <h2>Watch the highlights</h2>
               <span />
+              <div className="edition-carousel-controls">
+                <button
+                  type="button"
+                  onClick={() => moveVideos(-1)}
+                  disabled={yearVideos.length <= 3}
+                  aria-label="Previous highlight videos"
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  onClick={() => moveVideos(1)}
+                  disabled={yearVideos.length <= 3}
+                  aria-label="Next highlight videos"
+                >
+                  ›
+                </button>
+              </div>
             </div>
             <div className="edition-video-grid">
-              {yearVideos.slice(0, 3).map((item) => (
+              {visibleVideos.map((item) => (
                 <HighlightCard item={item} onOpen={setActiveVideo} key={item.id || item.url} />
               ))}
             </div>
