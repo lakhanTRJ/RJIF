@@ -313,6 +313,8 @@ export default function AdminPanel() {
         accordions: awards.content.accordions.map((row, i) => (i === index ? next : row)),
       },
     });
+  const updateHighlight = (id, patch) =>
+    setHighlights(highlights.map((row) => (row.id === id ? { ...row, ...patch } : row)));
   const reloadForum = async () => setContent(normalizeForumContent(await api(`/admin/forums/${forum}`)));
   useEffect(() => {
     api('/admin/session')
@@ -968,8 +970,27 @@ export default function AdminPanel() {
                 <input name="image_alt" required />
               </label>
               <label>
+                Event year
+                <input
+                  name="event_year"
+                  type="number"
+                  min="2000"
+                  max="2100"
+                  defaultValue={new Date().getFullYear()}
+                  required
+                />
+              </label>
+              <label>
                 Target URL
-                <input name="target_url" defaultValue="/previous-edition-highlights/" />
+                <input
+                  name="target_url"
+                  key={forum}
+                  defaultValue={
+                    forum === 'south'
+                      ? '/previous-edition-highlights-south/'
+                      : '/previous-edition-highlights/'
+                  }
+                />
               </label>
               <button className="button small">Add image</button>
             </form>
@@ -978,6 +999,7 @@ export default function AdminPanel() {
                 <article className="admin-card" key={item.id}>
                   {[
                     ['Alt text', 'image_alt'],
+                    ['Event year', 'event_year', 'number'],
                     ['Target URL', 'target_url'],
                     ['Order', 'sort_order', 'number'],
                   ].map(([label, key, type]) => (
@@ -1020,9 +1042,10 @@ export default function AdminPanel() {
 
         {section === 'highlights' && (
           <section>
+            <ForumPicker forum={forum} setForum={setForum} />
             <p>
-              Add a cover image and YouTube link. Clicking the cover on the public page opens the video in a
-              popup.
+              Add videos for the selected forum and year. Clicking the cover on the public page opens the
+              YouTube video in a popup.
             </p>
             <form
               className="admin-card"
@@ -1038,6 +1061,7 @@ export default function AdminPanel() {
               }}
             >
               <h2>Add highlight video</h2>
+              <input type="hidden" name="forum" value={forum} readOnly />
               <label>
                 Section
                 <select name="section">
@@ -1048,6 +1072,17 @@ export default function AdminPanel() {
               <label>
                 Title
                 <input name="title" required />
+              </label>
+              <label>
+                Event year
+                <input
+                  name="event_year"
+                  type="number"
+                  min="2000"
+                  max="2100"
+                  defaultValue={new Date().getFullYear()}
+                  required
+                />
               </label>
               <ImageUploadField
                 label="Cover image"
@@ -1066,79 +1101,62 @@ export default function AdminPanel() {
               <button className="button small">Add highlight</button>
             </form>
             <div className="admin-list">
-              {highlights.map((item, index) => (
-                <article className="admin-card" key={item.id}>
-                  <label>
-                    Section
-                    <select
-                      value={item.section}
-                      onChange={(e) =>
-                        setHighlights(
-                          highlights.map((row, i) =>
-                            i === index ? { ...row, section: e.target.value } : row,
-                          ),
-                        )
-                      }
-                    >
-                      <option value="session">Session Highlights</option>
-                      <option value="event">Event Highlights</option>
-                    </select>
-                  </label>
-                  {[
-                    ['Title', 'title'],
-                    ['YouTube URL', 'youtube_url', 'url'],
-                    ['Order', 'sort_order', 'number'],
-                  ].map(([label, key, type]) => (
-                    <Input
-                      key={key}
-                      label={label}
-                      type={type}
-                      value={item[key]}
-                      onChange={(value) =>
-                        setHighlights(
-                          highlights.map((row, i) => (i === index ? { ...row, [key]: value } : row)),
-                        )
-                      }
+              {highlights
+                .filter((item) => item.forum === forum)
+                .map((item) => (
+                  <article className="admin-card" key={item.id}>
+                    <label>
+                      Section
+                      <select
+                        value={item.section}
+                        onChange={(e) => updateHighlight(item.id, { section: e.target.value })}
+                      >
+                        <option value="session">Session Highlights</option>
+                        <option value="event">Event Highlights</option>
+                      </select>
+                    </label>
+                    {[
+                      ['Title', 'title'],
+                      ['Event year', 'event_year', 'number'],
+                      ['YouTube URL', 'youtube_url', 'url'],
+                      ['Order', 'sort_order', 'number'],
+                    ].map(([label, key, type]) => (
+                      <Input
+                        key={key}
+                        label={label}
+                        type={type}
+                        value={item[key]}
+                        onChange={(value) => updateHighlight(item.id, { [key]: value })}
+                      />
+                    ))}
+                    <ImageUploadField
+                      label="Cover image"
+                      value={item.cover_image_url}
+                      onChange={(cover_image_url) => updateHighlight(item.id, { cover_image_url })}
+                      altText={`${item.title} video cover`}
                     />
-                  ))}
-                  <ImageUploadField
-                    label="Cover image"
-                    value={item.cover_image_url}
-                    onChange={(cover_image_url) =>
-                      setHighlights(
-                        highlights.map((row, i) => (i === index ? { ...row, cover_image_url } : row)),
-                      )
-                    }
-                    altText={`${item.title} video cover`}
-                  />
-                  <label className="check">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(item.is_visible)}
-                      onChange={(e) =>
-                        setHighlights(
-                          highlights.map((row, i) =>
-                            i === index ? { ...row, is_visible: e.target.checked } : row,
-                          ),
-                        )
-                      }
-                    />{' '}
-                    Visible
-                  </label>
-                  <button
-                    className="button small"
-                    onClick={async () => {
-                      await api(`/admin/highlights/${item.id}`, {
-                        method: 'PUT',
-                        body: JSON.stringify(item),
-                      });
-                      notify('Highlight saved.');
-                    }}
-                  >
-                    Save highlight
-                  </button>
-                </article>
-              ))}
+                    <label className="check">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(item.is_visible)}
+                        onChange={(e) => updateHighlight(item.id, { is_visible: e.target.checked })}
+                      />{' '}
+                      Visible
+                    </label>
+                    <button
+                      className="button small"
+                      onClick={async () => {
+                        await api(`/admin/highlights/${item.id}`, {
+                          method: 'PUT',
+                          body: JSON.stringify(item),
+                        });
+                        notify('Highlight saved.');
+                      }}
+                    >
+                      Save highlight
+                    </button>
+                  </article>
+                ))}
             </div>
           </section>
         )}
@@ -1542,8 +1560,8 @@ export default function AdminPanel() {
         {section === 'felicitation' && (
           <section>
             <p>
-              Add the YouTube video shown as the Circle of Excellence banner. It plays automatically,
-              muted and in a continuous loop without controls.
+              Add the YouTube video shown as the Circle of Excellence banner. It plays automatically, muted
+              and in a continuous loop without controls.
             </p>
             <article className="admin-card">
               <Input

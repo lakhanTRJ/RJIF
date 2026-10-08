@@ -58,9 +58,7 @@ const upload = multer({
   limits: { fileSize: config.maxUploadMb * 1024 * 1024, files: 1 },
   fileFilter: (req, file, callback) =>
     callback(
-      allowedMime.has(file.mimetype)
-        ? null
-        : new Error('Only JPEG, PNG, WebP, and PDF files are allowed'),
+      allowedMime.has(file.mimetype) ? null : new Error('Only JPEG, PNG, WebP, and PDF files are allowed'),
       allowedMime.has(file.mimetype),
     ),
 });
@@ -358,8 +356,7 @@ adminRouter.get('/felicitation', requireAdmin, async (req, res, next) => {
 adminRouter.put('/felicitation', requireAdmin, requireCsrf, async (req, res, next) => {
   try {
     const heroYoutubeUrl = String(req.body?.hero_youtube_url || '').trim();
-    if (heroYoutubeUrl.length > 1000)
-      return res.status(422).json({ error: 'The YouTube URL is too long' });
+    if (heroYoutubeUrl.length > 1000) return res.status(422).json({ error: 'The YouTube URL is too long' });
     await query(
       'INSERT INTO felicitation_settings (id,hero_youtube_url,updated_by) VALUES (1,?,?) ON DUPLICATE KEY UPDATE hero_youtube_url=VALUES(hero_youtube_url),updated_by=VALUES(updated_by)',
       [heroYoutubeUrl, req.session.adminId],
@@ -594,12 +591,18 @@ adminRouter.put('/agenda/:id', requireAdmin, requireCsrf, async (req, res, next)
 adminRouter.post('/forums/:forum/gallery', requireAdmin, requireCsrf, async (req, res, next) => {
   try {
     const result = await query(
-      'INSERT INTO gallery_items (forum,image_url,image_alt,target_url,is_visible,sort_order) VALUES (?,?,?,?,1,?)',
+      'INSERT INTO gallery_items (forum,event_year,image_url,image_alt,target_url,is_visible,sort_order) VALUES (?,?,?,?,?,1,?)',
       [
         req.params.forum,
+        Number(req.body.event_year) || new Date().getFullYear(),
         String(req.body.image_url || '').slice(0, 1000),
         String(req.body.image_alt || 'Previous event glimpse').slice(0, 500),
-        String(req.body.target_url || '/previous-edition-highlights/').slice(0, 1000),
+        String(
+          req.body.target_url ||
+            (req.params.forum === 'south'
+              ? '/previous-edition-highlights-south/'
+              : '/previous-edition-highlights/'),
+        ).slice(0, 1000),
         Number(req.body.sort_order) || 0,
       ],
     );
@@ -611,8 +614,9 @@ adminRouter.post('/forums/:forum/gallery', requireAdmin, requireCsrf, async (req
 adminRouter.put('/gallery/:id', requireAdmin, requireCsrf, async (req, res, next) => {
   try {
     await query(
-      'UPDATE gallery_items SET image_url=?,image_alt=?,target_url=?,is_visible=?,sort_order=? WHERE id=?',
+      'UPDATE gallery_items SET event_year=?,image_url=?,image_alt=?,target_url=?,is_visible=?,sort_order=? WHERE id=?',
       [
+        Number(req.body.event_year) || new Date().getFullYear(),
         String(req.body.image_url || '').slice(0, 1000),
         String(req.body.image_alt || '').slice(0, 500),
         String(req.body.target_url || '').slice(0, 1000),
@@ -630,7 +634,9 @@ adminRouter.put('/gallery/:id', requireAdmin, requireCsrf, async (req, res, next
 adminRouter.get('/highlights', requireAdmin, async (req, res, next) => {
   try {
     res.json(
-      await query("SELECT * FROM highlight_videos ORDER BY FIELD(section,'session','event'),sort_order,id"),
+      await query(
+        "SELECT * FROM highlight_videos ORDER BY forum,event_year DESC,FIELD(section,'session','event'),sort_order,id",
+      ),
     );
   } catch (error) {
     next(error);
@@ -638,6 +644,7 @@ adminRouter.get('/highlights', requireAdmin, async (req, res, next) => {
 });
 adminRouter.post('/highlights', requireAdmin, requireCsrf, async (req, res, next) => {
   try {
+    const forum = req.body.forum === 'south' ? 'south' : 'india';
     const section = req.body.section === 'event' ? 'event' : 'session';
     const title = String(req.body.title || '').trim(),
       image = String(req.body.cover_image_url || '').slice(0, 1000),
@@ -645,8 +652,16 @@ adminRouter.post('/highlights', requireAdmin, requireCsrf, async (req, res, next
     if (!title || !image || !url)
       return res.status(422).json({ error: 'Title, cover image and YouTube URL are required' });
     const result = await query(
-      'INSERT INTO highlight_videos (section,title,cover_image_url,youtube_url,is_visible,sort_order) VALUES (?,?,?,?,1,?)',
-      [section, title, image, url, Number(req.body.sort_order) || 0],
+      'INSERT INTO highlight_videos (forum,section,event_year,title,cover_image_url,youtube_url,is_visible,sort_order) VALUES (?,?,?,?,?,?,1,?)',
+      [
+        forum,
+        section,
+        Number(req.body.event_year) || new Date().getFullYear(),
+        title,
+        image,
+        url,
+        Number(req.body.sort_order) || 0,
+      ],
     );
     res.status(201).json({ id: result.insertId });
   } catch (error) {
@@ -655,6 +670,7 @@ adminRouter.post('/highlights', requireAdmin, requireCsrf, async (req, res, next
 });
 adminRouter.put('/highlights/:id', requireAdmin, requireCsrf, async (req, res, next) => {
   try {
+    const forum = req.body.forum === 'south' ? 'south' : 'india';
     const section = req.body.section === 'event' ? 'event' : 'session';
     const title = String(req.body.title || '').trim(),
       image = String(req.body.cover_image_url || '').slice(0, 1000),
@@ -662,9 +678,11 @@ adminRouter.put('/highlights/:id', requireAdmin, requireCsrf, async (req, res, n
     if (!title || !image || !url)
       return res.status(422).json({ error: 'Title, cover image and YouTube URL are required' });
     await query(
-      'UPDATE highlight_videos SET section=?,title=?,cover_image_url=?,youtube_url=?,is_visible=?,sort_order=? WHERE id=?',
+      'UPDATE highlight_videos SET forum=?,section=?,event_year=?,title=?,cover_image_url=?,youtube_url=?,is_visible=?,sort_order=? WHERE id=?',
       [
+        forum,
         section,
+        Number(req.body.event_year) || new Date().getFullYear(),
         title,
         image,
         url,

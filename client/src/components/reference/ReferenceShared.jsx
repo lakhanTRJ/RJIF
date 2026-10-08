@@ -109,6 +109,8 @@ const contacts = {
 function pathFor(path, south) {
   if (path.includes('exhibition')) return south ? '/exhibition-south/' : '/exhibition/';
   if (path.includes('speakers')) return south ? '/south-forum-speakers/' : '/speakers/';
+  if (path.includes('previous-edition'))
+    return south ? '/previous-edition-highlights-south/' : '/previous-edition-highlights/';
   if (path.includes('felicitation') || path.includes('business-excellence-awards'))
     return south ? '/felicitation/' : '/business-excellence-awards/';
   return south ? '/conference-south/' : '/';

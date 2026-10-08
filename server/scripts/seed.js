@@ -307,6 +307,19 @@ const pages = [
     ],
   },
   {
+    path: '/previous-edition-highlights-south/',
+    title: 'Previous Edition Highlights – Retail Jeweller South Forum',
+    template: 'highlights',
+    sections: [
+      {
+        type: 'hero',
+        kicker: 'Retail Jeweller South Forum',
+        heading: 'Previous Edition Highlights',
+        body: 'Session highlights and event highlights from the Retail Jeweller South Forum.',
+      },
+    ],
+  },
+  {
     path: '/privacy-policy/',
     title: 'Policy – Retail Jeweller India Forum',
     template: 'legal',
@@ -566,8 +579,15 @@ try {
     if (!existing[0].count)
       for (let i = 0; i < rows.length; i++)
         await connection.execute(
-          'INSERT INTO gallery_items (forum,image_url,image_alt,target_url,sort_order) VALUES (?,?,?,?,?)',
-          [forum, rows[i].image, rows[i].alt || 'Previous event glimpse', '/previous-edition-highlights/', i],
+          'INSERT INTO gallery_items (forum,event_year,image_url,image_alt,target_url,sort_order) VALUES (?,?,?,?,?,?)',
+          [
+            forum,
+            2026,
+            rows[i].image,
+            rows[i].alt || 'Previous event glimpse',
+            forum === 'south' ? '/previous-edition-highlights-south/' : '/previous-edition-highlights/',
+            i,
+          ],
         );
   }
   await connection.commit();

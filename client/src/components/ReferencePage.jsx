@@ -41,7 +41,11 @@ export default function ReferencePage({ path }) {
       return <SpeakersPage south={south} path={normalized} />;
     if (normalized === '/business-excellence-awards/' || normalized === '/leadership-awards/')
       return <BusinessExcellencePage path={normalized} ui={referenceUi} />;
-    if (normalized === '/previous-edition-highlights/') return <HighlightsPage path={normalized} />;
+    if (
+      normalized === '/previous-edition-highlights/' ||
+      normalized === '/previous-edition-highlights-south/'
+    )
+      return <HighlightsPage south={south} path={normalized} />;
     if (normalized === '/partner/') return <PartnerPage path={normalized} />;
     if (normalized === '/felicitation/') return <FelicitationPage path={normalized} ui={referenceUi} />;
     if (normalized === '/privacy-policy/') return <PolicyPage path={normalized} />;

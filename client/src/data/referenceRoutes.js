@@ -8,6 +8,7 @@ export const referencePaths = [
   '/business-excellence-awards/',
   '/leadership-awards/',
   '/previous-edition-highlights/',
+  '/previous-edition-highlights-south/',
   '/partner/',
   '/felicitation/',
   '/privacy-policy/',

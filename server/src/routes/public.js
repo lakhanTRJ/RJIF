@@ -668,9 +668,7 @@ publicRouter.get('/awards', async (req, res, next) => {
 
 publicRouter.get('/felicitation', async (req, res, next) => {
   try {
-    const row = (
-      await query('SELECT hero_youtube_url FROM felicitation_settings WHERE id=1 LIMIT 1')
-    )[0];
+    const row = (await query('SELECT hero_youtube_url FROM felicitation_settings WHERE id=1 LIMIT 1'))[0];
     res.json({ heroYoutubeUrl: row?.hero_youtube_url || '' });
   } catch (error) {
     next(error);
@@ -758,7 +756,7 @@ publicRouter.get('/forum/:forum', async (req, res, next) => {
       [forum],
     );
     const gallery = await query(
-      'SELECT id,image_url AS image,image_alt AS alt,target_url,sort_order FROM gallery_items WHERE forum=? AND is_visible=1 ORDER BY sort_order,id',
+      'SELECT id,image_url AS image,image_alt AS alt,target_url,event_year,sort_order FROM gallery_items WHERE forum=? AND is_visible=1 ORDER BY event_year DESC,sort_order,id',
       [forum],
     );
     res.json({
@@ -775,9 +773,11 @@ publicRouter.get('/forum/:forum', async (req, res, next) => {
 
 publicRouter.get('/highlights', async (req, res, next) => {
   try {
+    const forum = ['india', 'south'].includes(String(req.query.forum)) ? String(req.query.forum) : 'india';
     res.json(
       await query(
-        "SELECT id,section,title,cover_image_url AS image,youtube_url AS url,sort_order FROM highlight_videos WHERE is_visible=1 ORDER BY FIELD(section,'session','event'),sort_order,id",
+        "SELECT id,forum,section,event_year,title,cover_image_url AS image,youtube_url AS url,sort_order FROM highlight_videos WHERE forum=? AND is_visible=1 ORDER BY event_year DESC,FIELD(section,'session','event'),sort_order,id",
+        [forum],
       ),
     );
   } catch (error) {

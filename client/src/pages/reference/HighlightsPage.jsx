@@ -1,104 +1,223 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import reference from '../../data/reference.generated.json';
 import { api } from '../../api.js';
-import {
-  A,
-  SiteHeader,
-  SectionTitle,
-  VideoModal,
-  Contacts,
-  Footer,
-} from '../../components/reference/ReferenceShared.jsx';
+import { SiteHeader, VideoModal, Contacts, Footer } from '../../components/reference/ReferenceShared.jsx';
+
+const CURRENT_YEAR = 2026;
 
 function HighlightCard({ item, onOpen }) {
   return (
-    <button type="button" className="highlight-card" onClick={() => onOpen(item)}>
-      <img src={item.image} alt={`${item.title} video cover`} />
-      <span className="play">▶</span>
-      <h3>{item.title}</h3>
+    <button type="button" className="edition-video-card" onClick={() => onOpen(item)}>
+      <span className="edition-video-image">
+        <img src={item.image} alt={`${item.title} video cover`} loading="lazy" />
+        <span className="edition-play" aria-hidden="true">
+          ▶
+        </span>
+      </span>
+      <span className="edition-video-copy">
+        <small>{item.section === 'session' ? 'Session highlight' : 'Event highlight'}</small>
+        <strong>{item.title}</strong>
+      </span>
     </button>
   );
 }
 
-function HighlightCarousel({ items, onOpen }) {
-  const [start, setStart] = useState(0);
-  useEffect(() => setStart(0), [items.length]);
-  const count = Math.min(3, items.length);
-  const shown = Array.from({ length: count }, (_, offset) => items[(start + offset) % items.length]);
-  const move = (direction) => setStart((index) => (index + direction + items.length) % items.length);
+function PhotoLightbox({ item, onClose, onPrevious, onNext }) {
+  useEffect(() => {
+    if (!item) return undefined;
+    const handleKey = (event) => {
+      if (event.key === 'Escape') onClose();
+      if (event.key === 'ArrowLeft') onPrevious();
+      if (event.key === 'ArrowRight') onNext();
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [item, onClose, onPrevious, onNext]);
+  if (!item) return null;
   return (
-    <div className="highlight-carousel">
-      <button
-        type="button"
-        className="carousel-arrow previous"
-        onClick={() => move(-1)}
-        disabled={items.length <= 3}
-        aria-label="Previous session highlights"
-      >
-        ‹
-      </button>
-      <div className="video-cards">
-        {shown.map((item) => (
-          <HighlightCard item={item} onOpen={onOpen} key={item.id || item.url} />
-        ))}
-      </div>
-      <button
-        type="button"
-        className="carousel-arrow next"
-        onClick={() => move(1)}
-        disabled={items.length <= 3}
-        aria-label="Next session highlights"
-      >
-        ›
-      </button>
+    <div
+      className="edition-lightbox"
+      role="presentation"
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <section role="dialog" aria-modal="true" aria-label={item.alt || 'Event photograph'}>
+        <button type="button" className="edition-lightbox-close" onClick={onClose} aria-label="Close image">
+          ×
+        </button>
+        <button
+          type="button"
+          className="edition-lightbox-arrow previous"
+          onClick={onPrevious}
+          aria-label="Previous image"
+        >
+          ‹
+        </button>
+        <img src={item.image} alt={item.alt || 'Previous edition event photograph'} />
+        <button
+          type="button"
+          className="edition-lightbox-arrow next"
+          onClick={onNext}
+          aria-label="Next image"
+        >
+          ›
+        </button>
+      </section>
     </div>
   );
 }
 
-function Highlights({ path }) {
-  const fallback = reference.highlights.videos.slice(0, 5).map((item, index) => ({
-    ...item,
-    id: `fallback-${index}`,
-    section: index < 3 ? 'session' : 'event',
-    title: ['Abhishek Raniwala', 'Ishu Datwani', 'Riva Dhir', 'Forum', 'Awards'][index],
-  }));
-  const [videos, setVideos] = useState(fallback);
+export default function HighlightsPage({ path, south = false }) {
+  const forum = south ? 'south' : 'india';
+  const fallbackGallery = (south ? reference.southConference.gallery : reference.home.gallery).map(
+    (item, index) => ({ ...item, id: `fallback-photo-${index}`, event_year: CURRENT_YEAR }),
+  );
+  const fallbackVideos = south
+    ? []
+    : reference.highlights.videos.slice(0, 5).map((item, index) => ({
+        ...item,
+        id: `fallback-video-${index}`,
+        section: index < 3 ? 'session' : 'event',
+        event_year: CURRENT_YEAR,
+        title: ['Abhishek Raniwala', 'Ishu Datwani', 'Riva Dhir', 'Forum', 'Awards'][index],
+      }));
+  const [gallery, setGallery] = useState(fallbackGallery);
+  const [videos, setVideos] = useState(fallbackVideos);
+  const [activeYear, setActiveYear] = useState(CURRENT_YEAR);
+  const [visibleCount, setVisibleCount] = useState(12);
   const [activeVideo, setActiveVideo] = useState(null);
+  const [lightboxIndex, setLightboxIndex] = useState(null);
+
   useEffect(() => {
     let active = true;
-    api('/public/highlights')
-      .then((rows) => active && rows.length && setVideos(rows))
+    Promise.all([api(`/public/forum/${forum}`), api(`/public/highlights?forum=${forum}`)])
+      .then(([content, highlightRows]) => {
+        if (!active) return;
+        if (content.gallery?.length) {
+          setGallery(content.gallery);
+          setActiveYear(Math.max(...content.gallery.map((item) => Number(item.event_year)).filter(Boolean)));
+        }
+        if (highlightRows.length) setVideos(highlightRows);
+      })
       .catch(() => {});
     return () => {
       active = false;
     };
-  }, []);
-  const sessions = videos.filter((item) => item.section === 'session'),
-    events = videos.filter((item) => item.section === 'event');
+  }, [forum]);
+
+  const years = useMemo(
+    () => [...new Set(gallery.map((item) => Number(item.event_year)).filter(Boolean))].sort((a, b) => b - a),
+    [gallery],
+  );
+  useEffect(() => {
+    if (years.length && !years.includes(activeYear)) setActiveYear(years[0]);
+  }, [activeYear, years]);
+  useEffect(() => setVisibleCount(12), [activeYear]);
+
+  const yearGallery = gallery.filter((item) => Number(item.event_year) === activeYear);
+  const yearVideos = videos.filter((item) => Number(item.event_year) === activeYear);
+  const heroImage = yearGallery[0]?.image || fallbackGallery[0]?.image;
+  const featured = yearGallery.slice(0, 5);
+  const visibleGallery = yearGallery.slice(0, visibleCount);
+  const lightboxItem = lightboxIndex === null ? null : yearGallery[lightboxIndex];
+  const moveLightbox = (direction) =>
+    setLightboxIndex((index) => (index + direction + yearGallery.length) % yearGallery.length);
+
   return (
-    <div className="reference-site highlights-page">
+    <div className={`reference-site previous-edition-page ${south ? 'south-edition' : ''}`}>
       <SiteHeader path={path} />
-      <section
-        className="highlight-hero"
-        style={{ backgroundImage: `url(${A('2026/09/the-retail-jeweller-forum-2-scaled.jpeg')})` }}
-      />
-      <section className="ref-section">
-        <SectionTitle>Session Highlights</SectionTitle>
-        <HighlightCarousel items={sessions} onOpen={setActiveVideo} />
-      </section>
-      <section className="ref-section">
-        <SectionTitle>Event Highlights</SectionTitle>
-        <div className="video-cards event-videos">
-          {events.map((item) => (
-            <HighlightCard item={item} onOpen={setActiveVideo} key={item.id || item.url} />
-          ))}
+      <section className="edition-hero" style={{ backgroundImage: `url(${heroImage})` }}>
+        <div>
+          <p>{south ? 'Retail Jeweller South Forum' : 'Retail Jeweller India Forum'}</p>
+          <h1>Previous Edition Highlights</h1>
+          <span />
+          <p>Relive the ideas, conversations and connections that shaped the forum.</p>
         </div>
       </section>
+
+      {featured.length > 0 && (
+        <section className="edition-section edition-featured">
+          <div className="edition-heading">
+            <p>Moments that mattered</p>
+            <h2>Featured photographs</h2>
+          </div>
+          <div className={`edition-feature-grid count-${featured.length}`}>
+            {featured.map((item, index) => (
+              <button type="button" key={item.id || item.image} onClick={() => setLightboxIndex(index)}>
+                <img
+                  src={item.image}
+                  alt={item.alt || `${south ? 'South' : 'India'} Forum highlight`}
+                  loading="lazy"
+                />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {yearVideos.length > 0 && (
+        <section className="edition-section edition-videos">
+          <div className="edition-heading light">
+            <p>Watch and revisit</p>
+            <h2>Forum highlights</h2>
+          </div>
+          <div className="edition-video-grid">
+            {yearVideos.map((item) => (
+              <HighlightCard item={item} onOpen={setActiveVideo} key={item.id || item.url} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section className="edition-section edition-gallery" id="gallery">
+        <div className="edition-heading">
+          <p>Inside the forum</p>
+          <h2>Photo gallery</h2>
+        </div>
+        {years.length > 0 && (
+          <div className="edition-year-tabs" aria-label="Filter gallery by year">
+            {years.map((year) => (
+              <button
+                type="button"
+                key={year}
+                className={year === activeYear ? 'active' : ''}
+                onClick={() => setActiveYear(year)}
+              >
+                {year}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="edition-photo-grid">
+          {visibleGallery.map((item, index) => (
+            <button type="button" key={item.id || item.image} onClick={() => setLightboxIndex(index)}>
+              <img
+                src={item.image}
+                alt={item.alt || `${south ? 'South' : 'India'} Forum gallery`}
+                loading="lazy"
+              />
+            </button>
+          ))}
+        </div>
+        {visibleCount < yearGallery.length && (
+          <button
+            type="button"
+            className="edition-load-more"
+            onClick={() => setVisibleCount((count) => count + 12)}
+          >
+            Load more photographs
+          </button>
+        )}
+      </section>
+
       <Contacts />
       <Footer />
       <VideoModal video={activeVideo} onClose={() => setActiveVideo(null)} />
+      <PhotoLightbox
+        item={lightboxItem}
+        onClose={() => setLightboxIndex(null)}
+        onPrevious={() => moveLightbox(-1)}
+        onNext={() => moveLightbox(1)}
+      />
     </div>
   );
 }
-
-export default Highlights;
