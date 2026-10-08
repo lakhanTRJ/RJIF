@@ -449,6 +449,267 @@
   }
 }
 
+/* Previous edition: approved editorial layout */
+.previous-edition-page {
+  background: #fff;
+}
+.previous-edition-page .edition-hero {
+  min-height: 0;
+  height: clamp(330px, 28vw, 430px);
+  place-items: center start;
+  padding: 0 max(6vw, 32px);
+  text-align: left;
+}
+.previous-edition-page .edition-hero::before {
+  background: linear-gradient(
+    90deg,
+    rgba(18, 5, 6, 0.96) 0%,
+    rgba(36, 5, 7, 0.78) 38%,
+    rgba(20, 4, 5, 0.08) 76%
+  );
+}
+.previous-edition-page .edition-hero > div {
+  width: min(650px, 55%);
+  margin: 0;
+}
+.previous-edition-page .edition-hero h1 {
+  font:
+    800 clamp(42px, 4.3vw, 62px) / 0.94 Arial,
+    sans-serif;
+  letter-spacing: -0.04em;
+}
+.previous-edition-page .edition-hero span {
+  width: 68px;
+  height: 4px;
+  margin: 20px 0;
+}
+.previous-edition-page .edition-hero p:last-child {
+  max-width: 470px;
+  margin: 0;
+  font-family: Georgia, serif;
+  font-size: clamp(17px, 1.65vw, 23px);
+  line-height: 1.3;
+}
+.previous-edition-page .edition-section {
+  max-width: none;
+  padding: 24px max(3vw, 20px);
+}
+.previous-edition-page .edition-feature-grid {
+  grid-template-columns: 1.9fr 1fr 1fr;
+  grid-template-rows: repeat(2, clamp(155px, 14vw, 220px));
+  gap: 10px;
+}
+.previous-edition-page .edition-feature-grid button {
+  position: relative;
+  border-radius: 7px;
+}
+.previous-edition-page .edition-feature-grid button:first-child {
+  grid-column: 1;
+  grid-row: span 2;
+}
+.previous-edition-page .edition-feature-grid button > span {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 20px;
+  background: linear-gradient(90deg, rgba(32, 19, 18, 0.95), rgba(32, 19, 18, 0.78));
+  color: #fff;
+  font:
+    400 16px/1.25 Georgia,
+    serif;
+  text-align: left;
+}
+.previous-edition-page .edition-feature-grid button > span b {
+  display: grid;
+  flex: 0 0 34px;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #fff;
+  border-radius: 50%;
+  font:
+    400 24px/1 Arial,
+    sans-serif;
+}
+.previous-edition-page .edition-videos {
+  padding-top: 28px;
+  padding-bottom: 28px;
+  background: #faf8f5;
+}
+.edition-watch-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.85fr) 3fr;
+  gap: clamp(24px, 4vw, 70px);
+  align-items: center;
+}
+.previous-edition-page .edition-heading {
+  margin: 0;
+  text-align: left;
+}
+.previous-edition-page .edition-heading h2 {
+  color: #241f20;
+  font:
+    800 clamp(27px, 3vw, 38px) / 1 Arial,
+    sans-serif;
+  letter-spacing: -0.03em;
+}
+.previous-edition-page .edition-watch-layout .edition-heading h2 {
+  font-size: 22px;
+  white-space: nowrap;
+}
+.previous-edition-page .edition-heading > span {
+  display: block;
+  width: 54px;
+  height: 4px;
+  margin-top: 16px;
+  border-radius: 5px;
+  background: #cf181d;
+}
+.previous-edition-page .edition-video-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.previous-edition-page .edition-video-card {
+  position: relative;
+  border-radius: 7px;
+  background: #241f20;
+}
+.previous-edition-page .edition-video-image {
+  aspect-ratio: 16 / 9;
+}
+.previous-edition-page .edition-play {
+  width: 52px;
+  height: 52px;
+  border: 2px solid #fff;
+  font-size: 18px;
+}
+.previous-edition-page .edition-video-copy {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: block;
+  padding: 32px 14px 11px;
+  background: linear-gradient(transparent, rgba(22, 15, 15, 0.92));
+  color: #fff;
+}
+.previous-edition-page .edition-video-copy small {
+  display: none;
+}
+.previous-edition-page .edition-video-copy strong {
+  font:
+    400 14px/1.2 Georgia,
+    serif;
+}
+.previous-edition-page .edition-gallery {
+  padding-top: 50px;
+  padding-bottom: 65px;
+}
+.edition-gallery-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 28px;
+  margin-bottom: 24px;
+}
+.previous-edition-page .edition-year-tabs {
+  justify-content: flex-end;
+  margin: 0;
+}
+.previous-edition-page .edition-year-tabs button {
+  min-width: 96px;
+  border-radius: 4px;
+  padding: 10px 20px;
+}
+.previous-edition-page .edition-photo-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: clamp(165px, 16vw, 245px);
+  gap: 8px;
+}
+.previous-edition-page .edition-photo-grid button,
+.previous-edition-page .edition-photo-grid button:nth-child(7n + 1),
+.previous-edition-page .edition-photo-grid button:nth-child(7n + 5) {
+  grid-column: auto;
+  border-radius: 5px;
+}
+.previous-edition-page .edition-load-more {
+  min-width: 250px;
+  border: 1px solid #cf181d;
+  border-radius: 4px;
+  padding: 13px 24px;
+  background: #fff;
+  color: #cf181d;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+.previous-edition-page .edition-load-more span {
+  margin-left: 12px;
+  font-size: 18px;
+}
+
+@media (max-width: 900px) {
+  .previous-edition-page .edition-hero > div {
+    width: min(520px, 62%);
+  }
+  .previous-edition-page .edition-feature-grid {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: 300px repeat(2, 190px);
+  }
+  .previous-edition-page .edition-feature-grid button:first-child {
+    grid-column: span 2;
+    grid-row: auto;
+  }
+  .edition-watch-layout {
+    grid-template-columns: 1fr;
+  }
+  .previous-edition-page .edition-photo-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .previous-edition-page .edition-hero {
+    height: 380px;
+    padding: 0 24px;
+    background-position: 60% center;
+  }
+  .previous-edition-page .edition-hero::before {
+    background: linear-gradient(90deg, rgba(18, 5, 6, 0.94), rgba(22, 4, 5, 0.62));
+  }
+  .previous-edition-page .edition-hero > div {
+    width: 90%;
+  }
+  .previous-edition-page .edition-hero h1 {
+    font-size: 42px;
+  }
+  .previous-edition-page .edition-feature-grid {
+    grid-template-rows: 230px repeat(2, 145px);
+  }
+  .previous-edition-page .edition-feature-grid button > span {
+    padding: 12px 14px;
+    font-size: 13px;
+  }
+  .previous-edition-page .edition-video-grid {
+    grid-template-columns: 1fr;
+  }
+  .edition-gallery-heading {
+    align-items: start;
+    flex-direction: column;
+  }
+  .previous-edition-page .edition-year-tabs {
+    justify-content: flex-start;
+  }
+  .previous-edition-page .edition-photo-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: 140px;
+  }
+}
+
 .enquiry-modal {
   position: relative;
   width: min(620px, 100%);

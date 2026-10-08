@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import reference from '../../data/reference.generated.json';
 import { api } from '../../api.js';
-import { SiteHeader, VideoModal, Contacts, Footer } from '../../components/reference/ReferenceShared.jsx';
+import { SiteHeader, VideoModal, Footer } from '../../components/reference/ReferenceShared.jsx';
 
 const CURRENT_YEAR = 2026;
 
@@ -115,7 +115,7 @@ export default function HighlightsPage({ path, south = false }) {
 
   const yearGallery = gallery.filter((item) => Number(item.event_year) === activeYear);
   const yearVideos = videos.filter((item) => Number(item.event_year) === activeYear);
-  const heroImage = yearGallery[0]?.image || fallbackGallery[0]?.image;
+  const heroImage = yearGallery[1]?.image || yearGallery[0]?.image || fallbackGallery[0]?.image;
   const featured = yearGallery.slice(0, 5);
   const visibleGallery = yearGallery.slice(0, visibleCount);
   const lightboxItem = lightboxIndex === null ? null : yearGallery[lightboxIndex];
@@ -127,7 +127,6 @@ export default function HighlightsPage({ path, south = false }) {
       <SiteHeader path={path} />
       <section className="edition-hero" style={{ backgroundImage: `url(${heroImage})` }}>
         <div>
-          <p>{south ? 'Retail Jeweller South Forum' : 'Retail Jeweller India Forum'}</p>
           <h1>Previous Edition Highlights</h1>
           <span />
           <p>Relive the ideas, conversations and connections that shaped the forum.</p>
@@ -136,10 +135,6 @@ export default function HighlightsPage({ path, south = false }) {
 
       {featured.length > 0 && (
         <section className="edition-section edition-featured">
-          <div className="edition-heading">
-            <p>Moments that mattered</p>
-            <h2>Featured photographs</h2>
-          </div>
           <div className={`edition-feature-grid count-${featured.length}`}>
             {featured.map((item, index) => (
               <button type="button" key={item.id || item.image} onClick={() => setLightboxIndex(index)}>
@@ -148,6 +143,12 @@ export default function HighlightsPage({ path, south = false }) {
                   alt={item.alt || `${south ? 'South' : 'India'} Forum highlight`}
                   loading="lazy"
                 />
+                {index === 0 && (
+                  <span>
+                    <strong>Conversations that shaped the industry</strong>
+                    <b aria-hidden="true">›</b>
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -156,37 +157,41 @@ export default function HighlightsPage({ path, south = false }) {
 
       {yearVideos.length > 0 && (
         <section className="edition-section edition-videos">
-          <div className="edition-heading light">
-            <p>Watch and revisit</p>
-            <h2>Forum highlights</h2>
-          </div>
-          <div className="edition-video-grid">
-            {yearVideos.map((item) => (
-              <HighlightCard item={item} onOpen={setActiveVideo} key={item.id || item.url} />
-            ))}
+          <div className="edition-watch-layout">
+            <div className="edition-heading">
+              <h2>Watch the highlights</h2>
+              <span />
+            </div>
+            <div className="edition-video-grid">
+              {yearVideos.slice(0, 3).map((item) => (
+                <HighlightCard item={item} onOpen={setActiveVideo} key={item.id || item.url} />
+              ))}
+            </div>
           </div>
         </section>
       )}
 
       <section className="edition-section edition-gallery" id="gallery">
-        <div className="edition-heading">
-          <p>Inside the forum</p>
-          <h2>Photo gallery</h2>
-        </div>
-        {years.length > 0 && (
-          <div className="edition-year-tabs" aria-label="Filter gallery by year">
-            {years.map((year) => (
-              <button
-                type="button"
-                key={year}
-                className={year === activeYear ? 'active' : ''}
-                onClick={() => setActiveYear(year)}
-              >
-                {year}
-              </button>
-            ))}
+        <div className="edition-gallery-heading">
+          <div className="edition-heading">
+            <h2>Photo gallery</h2>
+            <span />
           </div>
-        )}
+          {years.length > 0 && (
+            <div className="edition-year-tabs" aria-label="Filter gallery by year">
+              {years.map((year) => (
+                <button
+                  type="button"
+                  key={year}
+                  className={year === activeYear ? 'active' : ''}
+                  onClick={() => setActiveYear(year)}
+                >
+                  {year}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <div className="edition-photo-grid">
           {visibleGallery.map((item, index) => (
             <button type="button" key={item.id || item.image} onClick={() => setLightboxIndex(index)}>
@@ -204,12 +209,12 @@ export default function HighlightsPage({ path, south = false }) {
             className="edition-load-more"
             onClick={() => setVisibleCount((count) => count + 12)}
           >
-            Load more photographs
+            Load more photos <span aria-hidden="true">⌄</span>
           </button>
         )}
       </section>
 
-      <Contacts />
+      <div id="contact" />
       <Footer />
       <VideoModal video={activeVideo} onClose={() => setActiveVideo(null)} />
       <PhotoLightbox
