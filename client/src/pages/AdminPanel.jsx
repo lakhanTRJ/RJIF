@@ -300,6 +300,9 @@ export default function AdminPanel() {
   });
   const [felicitation, setFelicitation] = useState({ hero_youtube_url: '' });
   const [newArticleBody, setNewArticleBody] = useState('');
+  const [showArticleCreate, setShowArticleCreate] = useState(false);
+  const [editingArticleId, setEditingArticleId] = useState(null);
+  const [articleSearch, setArticleSearch] = useState('');
   const [content, setContent] = useState({ settings: {}, speakers: [], agenda: [], gallery: [] });
   const notify = (message) => setNotice(message);
   const update = (key, index, patch) =>
@@ -1590,114 +1593,205 @@ export default function AdminPanel() {
 
         {section === 'articles' && (
           <section>
-            <p>Editors can create and publish articles; saves are revisioned.</p>
-            <form
-              className="admin-card"
-              onSubmit={async (e) => {
-                e.preventDefault();
-                if (!newArticleBody.replace(/<[^>]*>/g, '').trim()) {
-                  notify('Please add the article content.');
-                  return;
-                }
-                await api('/admin/articles', {
-                  method: 'POST',
-                  body: JSON.stringify(Object.fromEntries(new FormData(e.currentTarget))),
-                });
-                e.currentTarget.reset();
-                setNewArticleBody('');
-                setArticles(await api('/admin/articles'));
-                notify('Draft created.');
-              }}
-            >
+            <p>Search articles quickly and open only the article you want to edit.</p>
+            <div className="admin-article-toolbar">
               <label>
-                Title
-                <input name="title" required />
+                Search articles
+                <input
+                  type="search"
+                  value={articleSearch}
+                  placeholder="Search by title, category or status"
+                  onChange={(event) => setArticleSearch(event.target.value)}
+                />
               </label>
-              <label>
-                Slug
-                <input name="slug" required />
-              </label>
-              <label>
-                Excerpt
-                <textarea name="excerpt" />
-              </label>
-              <label>
-                Category
-                <input name="category" placeholder="For example: Industry Insights" required />
-              </label>
-              <ImageUploadField label="Featured image" name="featured_image_url" required />
-              <RichTextEditor
-                label="Article content"
-                name="body_html"
-                value={newArticleBody}
-                onChange={setNewArticleBody}
-              />
-              <button className="button small">Create draft</button>
-            </form>
-            <div className="admin-list">
-              {articles.map((a, index) => (
-                <article className="admin-card" key={a.id}>
-                  {[
-                    ['Title', 'title'],
-                    ['Category', 'category'],
-                    ['Excerpt', 'excerpt', 'textarea'],
-                    ['SEO title', 'seo_title'],
-                    ['SEO description', 'seo_description', 'textarea'],
-                  ].map(([label, key, type]) => (
-                    <Input
-                      key={key}
-                      label={label}
-                      type={type}
-                      value={a[key]}
-                      onChange={(value) =>
-                        setArticles(articles.map((row, i) => (i === index ? { ...row, [key]: value } : row)))
-                      }
-                    />
-                  ))}
-                  <RichTextEditor
-                    label="Article content"
-                    value={a.body_html}
-                    onChange={(body_html) =>
-                      setArticles(articles.map((row, i) => (i === index ? { ...row, body_html } : row)))
-                    }
-                  />
-                  <ImageUploadField
-                    label="Featured image"
-                    value={a.featured_image_url}
-                    onChange={(featured_image_url) =>
-                      setArticles(
-                        articles.map((row, i) => (i === index ? { ...row, featured_image_url } : row)),
-                      )
-                    }
-                    altText={a.title}
-                  />
-                  <label>
-                    Status
-                    <select
-                      value={a.status}
-                      onChange={(e) =>
-                        setArticles(
-                          articles.map((row, i) => (i === index ? { ...row, status: e.target.value } : row)),
-                        )
-                      }
-                    >
-                      <option value="draft">Draft</option>
-                      <option value="scheduled">Scheduled</option>
-                      <option value="published">Published</option>
-                      <option value="archived">Archived</option>
-                    </select>
-                  </label>
-                  <button
-                    className="button small"
-                    onClick={async () => {
-                      await api(`/admin/articles/${a.id}`, { method: 'PUT', body: JSON.stringify(a) });
-                      notify('Article saved.');
-                    }}
-                  >
-                    Save article
-                  </button>
-                </article>
-              ))}
+              <button
+                type="button"
+                className="button small"
+                onClick={() => setShowArticleCreate(!showArticleCreate)}
+              >
+                {showArticleCreate ? 'Close new article' : 'Create new article'}
+              </button>
+            </div>
+            {showArticleCreate && (
+              <form
+                className="admin-card admin-article-create"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!newArticleBody.replace(/<[^>]*>/g, '').trim()) {
+                    notify('Please add the article content.');
+                    return;
+                  }
+                  await api('/admin/articles', {
+                    method: 'POST',
+                    body: JSON.stringify(Object.fromEntries(new FormData(e.currentTarget))),
+                  });
+                  e.currentTarget.reset();
+                  setNewArticleBody('');
+                  setShowArticleCreate(false);
+                  setArticles(await api('/admin/articles'));
+                  notify('Draft created.');
+                }}
+              >
+                <h2>Create a new article</h2>
+                <label>
+                  Title
+                  <input name="title" required />
+                </label>
+                <label>
+                  Slug
+                  <input name="slug" placeholder="example-article-title" required />
+                </label>
+                <label>
+                  Excerpt
+                  <textarea name="excerpt" />
+                </label>
+                <label>
+                  Category
+                  <input name="category" placeholder="For example: Industry Insights" required />
+                </label>
+                <ImageUploadField label="Featured image" name="featured_image_url" required />
+                <RichTextEditor
+                  label="Article content"
+                  name="body_html"
+                  value={newArticleBody}
+                  onChange={setNewArticleBody}
+                />
+                <button className="button small">Create draft</button>
+              </form>
+            )}
+            <div className="admin-article-list">
+              {articles
+                .map((article, index) => ({ article, index }))
+                .filter(({ article }) => {
+                  const search = articleSearch.trim().toLowerCase();
+                  return (
+                    !search ||
+                    [article.title, article.category, article.status, article.slug]
+                      .join(' ')
+                      .toLowerCase()
+                      .includes(search)
+                  );
+                })
+                .map(({ article: a, index }) => {
+                  const isEditing = editingArticleId === a.id;
+                  return (
+                    <article className={`admin-article-item${isEditing ? ' editing' : ''}`} key={a.id}>
+                      <div className="admin-article-summary">
+                        {a.featured_image_url ? (
+                          <img src={a.featured_image_url} alt="" />
+                        ) : (
+                          <span className="admin-article-image-placeholder">No image</span>
+                        )}
+                        <div className="admin-article-summary-copy">
+                          <h3>{a.title}</h3>
+                          <p>
+                            {a.category || 'Uncategorised'} <span>·</span> /blog/{a.slug}/
+                          </p>
+                          {a.updated_at && (
+                            <small>Updated {new Date(a.updated_at).toLocaleDateString('en-IN')}</small>
+                          )}
+                        </div>
+                        <span className={`admin-status admin-status-${a.status}`}>{a.status}</span>
+                        <button
+                          type="button"
+                          className="button small secondary"
+                          onClick={() => setEditingArticleId(isEditing ? null : a.id)}
+                        >
+                          {isEditing ? 'Close editor' : 'Edit article'}
+                        </button>
+                      </div>
+                      {isEditing && (
+                        <div className="admin-article-editor">
+                          {[
+                            ['Title', 'title'],
+                            ['Category', 'category'],
+                            ['Excerpt', 'excerpt', 'textarea'],
+                            ['SEO title', 'seo_title'],
+                            ['SEO description', 'seo_description', 'textarea'],
+                          ].map(([label, key, type]) => (
+                            <Input
+                              key={key}
+                              label={label}
+                              type={type}
+                              value={a[key]}
+                              onChange={(value) =>
+                                setArticles(
+                                  articles.map((row, i) => (i === index ? { ...row, [key]: value } : row)),
+                                )
+                              }
+                            />
+                          ))}
+                          <RichTextEditor
+                            label="Article content"
+                            value={a.body_html}
+                            onChange={(body_html) =>
+                              setArticles(
+                                articles.map((row, i) => (i === index ? { ...row, body_html } : row)),
+                              )
+                            }
+                          />
+                          <ImageUploadField
+                            label="Featured image"
+                            value={a.featured_image_url}
+                            onChange={(featured_image_url) =>
+                              setArticles(
+                                articles.map((row, i) =>
+                                  i === index ? { ...row, featured_image_url } : row,
+                                ),
+                              )
+                            }
+                            altText={a.title}
+                          />
+                          <label>
+                            Status
+                            <select
+                              value={a.status}
+                              onChange={(e) =>
+                                setArticles(
+                                  articles.map((row, i) =>
+                                    i === index ? { ...row, status: e.target.value } : row,
+                                  ),
+                                )
+                              }
+                            >
+                              <option value="draft">Draft</option>
+                              <option value="scheduled">Scheduled</option>
+                              <option value="published">Published</option>
+                              <option value="archived">Archived</option>
+                            </select>
+                          </label>
+                          <div className="admin-article-actions">
+                            <button
+                              type="button"
+                              className="button small"
+                              onClick={async () => {
+                                await api(`/admin/articles/${a.id}`, {
+                                  method: 'PUT',
+                                  body: JSON.stringify(a),
+                                });
+                                setArticles(await api('/admin/articles'));
+                                setEditingArticleId(null);
+                                notify('Article saved.');
+                              }}
+                            >
+                              Save article
+                            </button>
+                            {a.status === 'published' && (
+                              <a
+                                className="button small secondary"
+                                href={`/blog/${a.slug}/`}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                View article
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}
             </div>
           </section>
         )}
