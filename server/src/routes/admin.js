@@ -6,7 +6,8 @@ import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import sanitizeHtml from 'sanitize-html';
-import { query } from '../db.js';
+import { pool, query } from '../db.js';
+import { validateManualRegistration } from '../manualRegistration.js';
 import { issueCsrf, requireAdmin, requireAdministrator, requireCsrf } from '../security.js';
 import { config } from '../config.js';
 import { detectMediaMime } from '../mediaValidation.js';
@@ -14,6 +15,7 @@ import {
   getPassByToken,
   issuePassesForOrder,
   queuePassEmail,
+  orderToken,
   sha256,
   tokenFromScan,
 } from '../passService.js';
@@ -697,10 +699,125 @@ adminRouter.put('/highlights/:id', requireAdmin, requireCsrf, async (req, res, n
   }
 });
 
+adminRouter.post('/registrations/manual', requireAdministrator, requireCsrf, async (req, res, next) => {
+  const connection = await pool.getConnection();
+  let committed = false;
+  try {
+    const key = String(req.body.idempotency_key || '');
+    if (!/^[a-zA-Z0-9-]{16,100}$/.test(key))
+      return res.status(422).json({ error: 'Invalid registration session.' });
+    const hash = sha256(`manual:${key}`);
+    await connection.beginTransaction();
+    const [[product]] = await connection.execute('SELECT * FROM commerce_products WHERE id=? FOR UPDATE', [
+      Number(req.body.product_id) || 0,
+    ]);
+    const [[existing]] = await connection.execute(
+      'SELECT id,public_id FROM commerce_orders WHERE idempotency_key=?',
+      [hash],
+    );
+    if (existing) {
+      await connection.rollback();
+      return res.json({
+        ok: true,
+        manageUrl: `/registration/?token=${encodeURIComponent(orderToken(existing.public_id))}`,
+        duplicate: true,
+      });
+    }
+    const data = validateManualRegistration(req.body, product);
+    const [[duplicate]] = await connection.execute(
+      'SELECT id FROM commerce_orders WHERE payment_method=? AND payment_reference=? LIMIT 1',
+      [data.method, data.reference],
+    );
+    if (duplicate)
+      throw Object.assign(new Error('This payment reference has already been recorded.'), { status: 409 });
+    if (product.inventory_limit !== null) {
+      const [[sold]] = await connection.execute(
+        "SELECT COALESCE(SUM(quantity),0) AS total FROM commerce_orders WHERE product_id=? AND status IN ('payment_created','paid')",
+        [product.id],
+      );
+      if (Number(sold.total) + data.quantity > Number(product.inventory_limit))
+        throw Object.assign(new Error('The requested pass quantity exceeds available inventory.'), {
+          status: 409,
+        });
+    }
+    const publicId = crypto.randomUUID();
+    const [result] = await connection.execute(
+      "INSERT INTO commerce_orders (public_id,idempotency_key,product_id,quantity,subtotal_paise,tax_paise,total_paise,currency,customer_name,company,email,phone,gstin,billing_address,status,consented_at,policy_version,paid_at,payment_method,payment_reference,payment_notes,recorded_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'paid',NOW(),'admin-manual-v1',?,?,?,?,?)",
+      [
+        publicId,
+        hash,
+        product.id,
+        data.quantity,
+        data.subtotal,
+        data.tax,
+        data.total,
+        product.currency,
+        data.customerName,
+        data.company,
+        data.email,
+        data.phone,
+        data.gstin || null,
+        data.address,
+        data.paidAt,
+        data.method,
+        data.reference,
+        data.notes || null,
+        req.session.adminId,
+      ],
+    );
+    for (const [index, attendee] of data.attendees.entries())
+      await connection.execute(
+        'INSERT INTO order_attendees (order_id,attendee_number,full_name,email,phone) VALUES (?,?,?,?,?)',
+        [result.insertId, index + 1, attendee.full_name, attendee.email, attendee.phone],
+      );
+    await connection.execute(
+      'INSERT INTO admin_audit_log (admin_user_id,action,entity_type,entity_id,metadata) VALUES (?,?,?,?,?)',
+      [
+        req.session.adminId,
+        'manual_payment_registration',
+        'commerce_order',
+        String(result.insertId),
+        JSON.stringify({ method: data.method, reference: data.reference, total_paise: data.total }),
+      ],
+    );
+    await connection.commit();
+    committed = true;
+    await issuePassesForOrder(result.insertId);
+    const email = await queuePassEmail(result.insertId);
+    res
+      .status(201)
+      .json({
+        ok: true,
+        email,
+        manageUrl: `/registration/?token=${encodeURIComponent(orderToken(publicId))}`,
+      });
+  } catch (error) {
+    if (!committed) await connection.rollback();
+    if (committed)
+      return res
+        .status(503)
+        .json({
+          error:
+            'Payment registration saved. Open Registrations and use Mark paid to retry issuing the passes.',
+        });
+    if (error.code === 'ER_DUP_ENTRY')
+      return res
+        .status(409)
+        .json({
+          error:
+            'This registration or payment reference has already been recorded. Check Registrations before trying again.',
+        });
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    next(error);
+  } finally {
+    connection.release();
+  }
+});
+
 adminRouter.get('/registrations', requireAdmin, async (req, res, next) => {
   try {
     const rows = await query(
-      `SELECT o.id,o.public_id,o.customer_name,o.company,o.email,o.phone,o.total_paise,o.status,o.created_at,p.name AS product_name,p.forum,COUNT(DISTINCT oa.id) AS attendee_count,COUNT(DISTINCT dp.id) AS pass_count FROM commerce_orders o JOIN commerce_products p ON p.id=o.product_id LEFT JOIN order_attendees oa ON oa.order_id=o.id LEFT JOIN digital_passes dp ON dp.order_id=o.id GROUP BY o.id ORDER BY o.created_at DESC LIMIT 200`,
+      `SELECT o.id,o.public_id,o.customer_name,o.company,o.email,o.phone,o.total_paise,o.status,o.created_at,o.payment_method,o.payment_reference,o.payment_notes,o.paid_at,p.name AS product_name,p.forum,COUNT(DISTINCT oa.id) AS attendee_count,COUNT(DISTINCT dp.id) AS pass_count FROM commerce_orders o JOIN commerce_products p ON p.id=o.product_id LEFT JOIN order_attendees oa ON oa.order_id=o.id LEFT JOIN digital_passes dp ON dp.order_id=o.id GROUP BY o.id ORDER BY o.created_at DESC LIMIT 200`,
     );
     res.json(rows);
   } catch (error) {

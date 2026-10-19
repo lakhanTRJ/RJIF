@@ -5,6 +5,7 @@ import ImageUploadField from '../components/admin/ImageUploadField.jsx';
 import DocumentUploadField from '../components/admin/DocumentUploadField.jsx';
 import AdminCheckIn from '../components/admin/AdminCheckIn.jsx';
 import AdminNavigation from '../components/admin/AdminNavigation.jsx';
+import ManualRegistrationForm from '../components/admin/ManualRegistrationForm.jsx';
 import RichTextEditor from '../components/admin/RichTextEditor.jsx';
 import { adminRoutes } from '../components/admin/adminRoutes.js';
 import '../admin.css';
@@ -291,6 +292,7 @@ export default function AdminPanel() {
     [media, setMedia] = useState([]),
     [submissions, setSubmissions] = useState([]);
   const [registrations, setRegistrations] = useState([]);
+  const [showManualRegistration, setShowManualRegistration] = useState(false);
   const [eventStaff, setEventStaff] = useState([]);
   const [highlights, setHighlights] = useState([]),
     [testimonials, setTestimonials] = useState([]);
@@ -402,6 +404,22 @@ export default function AdminPanel() {
               Paid and complimentary orders issue QR passes automatically when attendee details are available.
               Administrators can confirm an offline payment here.
             </p>
+            {role === 'administrator' && (
+              <>
+                <button
+                  type="button"
+                  className="button small"
+                  onClick={() => setShowManualRegistration(!showManualRegistration)}
+                >
+                  {showManualRegistration ? 'Close manual registration' : 'Add manual / NEFT registration'}
+                </button>
+                {showManualRegistration && (
+                  <ManualRegistrationForm
+                    onCreated={async () => setRegistrations(await api('/admin/registrations'))}
+                  />
+                )}
+              </>
+            )}
             <div className="table-wrap">
               <table>
                 <thead>
@@ -431,9 +449,28 @@ export default function AdminPanel() {
                       <td>
                         {row.attendee_count} / {row.pass_count} issued
                       </td>
-                      <td>{row.status}</td>
                       <td>
-                        {row.status !== 'paid' ? (
+                        {row.status}
+                        {row.payment_method && (
+                          <>
+                            <br />
+                            <small>
+                              {row.payment_method.toUpperCase()} · {row.payment_reference}
+                              <br />
+                              {row.paid_at && new Date(row.paid_at).toLocaleString('en-IN')}
+                              {row.payment_notes && (
+                                <>
+                                  <br />
+                                  {row.payment_notes}
+                                </>
+                              )}
+                            </small>
+                          </>
+                        )}
+                      </td>
+                      <td>
+                        {row.status !== 'paid' ||
+                        (Number(row.pass_count) === 0 && Number(row.attendee_count) > 0) ? (
                           <button
                             className="button small"
                             disabled={role !== 'administrator'}
