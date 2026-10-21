@@ -627,15 +627,15 @@ export function PostAgendaBanner({ settings, south = false }) {
     </section>
   );
 }
-export function PromotionalBanner({ settings, south = false }) {
-  if (settings.quote_visible === 0) return null;
-  const image =
-    settings.quote_banner_url || (!south ? A('2026/09/retail-reimagined-india-forum-27.png') : '');
+export function PromotionalBanner({ settings, south = false, anchorBase = '' }) {
+  if (settings.quote_visible === 0 || settings.quote_visible === false) return null;
+  const image = settings.quote_banner_url || A('2026/09/retail-reimagined-india-forum-27.png');
+  const target = settings.quote_banner_target || '#passes';
   if (!image) return null;
   return (
     <section className="home-promo-banner">
       <a
-        href={settings.quote_banner_target || '#passes'}
+        href={target.startsWith('#') ? `${anchorBase}${target}` : target}
         aria-label={`${south ? 'South' : 'India'} Forum promotion`}
       >
         <img src={image} alt={`${south ? 'South' : 'India'} Forum promotional banner`} />

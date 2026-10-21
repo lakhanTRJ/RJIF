@@ -681,6 +681,10 @@ export default function AdminPanel() {
                     }
                     altText={`${forum} Forum promotional banner`}
                   />
+                  <small>
+                    This banner image, link and visibility setting apply to both the conference and exhibition
+                    pages for the selected forum. Select India or South above to manage each forum’s banner.
+                  </small>
                   <ImageUploadField
                     label="Post-agenda banner image"
                     value={content.settings?.post_agenda_banner_url}

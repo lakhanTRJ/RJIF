@@ -10,10 +10,13 @@ import {
   Gallery,
   Contacts,
   Footer,
+  PromotionalBanner,
+  useForumContent,
 } from '../../components/reference/ReferenceShared.jsx';
 
 function Exhibition({ south = false, path }) {
   const data = south ? reference.southExhibition : reference.exhibition;
+  const content = useForumContent(south ? 'south' : 'india');
   const [testimonial, setTestimonial] = useState(0);
   const [testimonials, setTestimonials] = useState(data.testimonials);
   const [enquiryOpen, setEnquiryOpen] = useState(false);
@@ -116,20 +119,11 @@ function Exhibition({ south = false, path }) {
           ))}
         </div>
       </section>
-      <section className="quote-banner exhibition-quote">
-        <div>
-          <b>“</b>
-          <h2>
-            {south
-              ? 'Where the retailers who lead the south come to lead change Join The Discussion.'
-              : 'Where retail isn’t just discussed, it’s reimagined.'}
-          </h2>
-          <div className="quote-actions">
-            <Button href={south ? '/conference-south/#passes' : '/#passes'}>Register</Button>
-            <Button onClick={() => setEnquiryOpen(true)}>Exhibit</Button>
-          </div>
-        </div>
-      </section>
+      <PromotionalBanner
+        settings={content?.settings || {}}
+        south={south}
+        anchorBase={south ? '/conference-south/' : '/'}
+      />
       <Gallery items={data.gallery} label="Previous Editions" />
       <Contacts />
       <Footer />
