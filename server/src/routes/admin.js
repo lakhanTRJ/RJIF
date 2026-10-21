@@ -8,7 +8,13 @@ import crypto from 'node:crypto';
 import { cleanArticleHtml, articleSlug } from '../articleContent.js';
 import { pool, query } from '../db.js';
 import { validateManualRegistration } from '../manualRegistration.js';
-import { issueCsrf, requireAdmin, requireAdministrator, requireCsrf } from '../security.js';
+import {
+  issueCsrf,
+  requireAdmin,
+  requireAdministrator,
+  requireCsrf,
+  validateAdminSession,
+} from '../security.js';
 import { config } from '../config.js';
 import { detectMediaMime } from '../mediaValidation.js';
 import {
@@ -79,7 +85,7 @@ adminRouter.post('/login', loginLimiter, async (req, res, next) => {
       .toLowerCase();
     const password = String(req.body.password || '');
     const users = await query(
-      'SELECT id, email, password_hash, role FROM admin_users WHERE email = ? AND is_active = 1 LIMIT 1',
+      'SELECT id, email, password_hash, role, auth_version FROM admin_users WHERE email = ? AND is_active = 1 LIMIT 1',
       [email],
     );
     const valid = users[0] && (await bcrypt.compare(password, users[0].password_hash));
@@ -89,12 +95,21 @@ adminRouter.post('/login', loginLimiter, async (req, res, next) => {
       if (error) return next(error);
       req.session.adminId = users[0].id;
       req.session.role = users[0].role;
+      req.session.authVersion = users[0].auth_version;
       res.json({ id: users[0].id, email: users[0].email, role: users[0].role, csrfToken: issueCsrf(req) });
     });
   } catch (error) {
     next(error);
   }
 });
+
+// Revalidate every protected request so disabling/resetting an account revokes existing sessions.
+adminRouter.use(
+  validateAdminSession(
+    async (id) =>
+      (await query('SELECT role,is_active,auth_version FROM admin_users WHERE id=? LIMIT 1', [id]))[0],
+  ),
+);
 
 adminRouter.post('/logout', requireAdmin, requireCsrf, (req, res, next) =>
   req.session.destroy((error) => (error ? next(error) : res.json({ ok: true }))),
@@ -893,6 +908,82 @@ adminRouter.post(
     }
   },
 );
+adminRouter.get('/team-accounts', requireAdministrator, async (req, res, next) => {
+  try {
+    res.json(
+      await query(
+        "SELECT id,email,is_active,created_at,last_login_at FROM admin_users WHERE role='article_publisher' ORDER BY email",
+      ),
+    );
+  } catch (error) {
+    next(error);
+  }
+});
+adminRouter.post('/team-accounts', requireAdministrator, requireCsrf, async (req, res, next) => {
+  try {
+    const email = String(req.body.email || '')
+      .trim()
+      .toLowerCase();
+    const password = String(req.body.password || '');
+    if (
+      email.length > 255 ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+      password.length < 12 ||
+      Buffer.byteLength(password) > 72
+    )
+      return res
+        .status(422)
+        .json({ error: 'Enter a valid email and a password of at least 12 characters (maximum 72 bytes)' });
+    const hash = await bcrypt.hash(password, 12);
+    const result = await query(
+      "INSERT INTO admin_users (email,password_hash,role,is_active) VALUES (?,?,'article_publisher',1)",
+      [email, hash],
+    );
+    await audit(req, 'create', 'article_publisher', result.insertId, { email });
+    res.status(201).json({ ok: true });
+  } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY')
+      return res.status(409).json({
+        error:
+          'An account already uses this email. Use a different email or reset the existing publisher account.',
+      });
+    next(error);
+  }
+});
+adminRouter.put('/team-accounts/:id', requireAdministrator, requireCsrf, async (req, res, next) => {
+  try {
+    const password = req.body.password;
+    let result;
+    if (password !== undefined) {
+      if (typeof password !== 'string' || password.length < 12 || Buffer.byteLength(password) > 72)
+        return res
+          .status(422)
+          .json({ error: 'Password must be at least 12 characters and at most 72 bytes' });
+      result = await query(
+        "UPDATE admin_users SET password_hash=?,auth_version=auth_version+1 WHERE id=? AND role='article_publisher'",
+        [await bcrypt.hash(password, 12), req.params.id],
+      );
+    } else {
+      if (typeof req.body.is_active !== 'boolean')
+        return res.status(422).json({ error: 'Choose an active status' });
+      result = await query(
+        "UPDATE admin_users SET is_active=?,auth_version=auth_version+1 WHERE id=? AND role='article_publisher'",
+        [req.body.is_active ? 1 : 0, req.params.id],
+      );
+    }
+    if (!result.affectedRows) return res.status(404).json({ error: 'Publisher account not found' });
+    await audit(
+      req,
+      password !== undefined ? 'reset_password' : req.body.is_active ? 'enable' : 'disable',
+      'article_publisher',
+      req.params.id,
+    );
+    res.json({ ok: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
 adminRouter.get('/event-staff', requireAdministrator, async (req, res, next) => {
   try {
     res.json(

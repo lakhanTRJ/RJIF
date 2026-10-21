@@ -8,6 +8,7 @@ import AdminNavigation from '../components/admin/AdminNavigation.jsx';
 import ManualRegistrationForm from '../components/admin/ManualRegistrationForm.jsx';
 import RegistrationPasses from '../components/admin/RegistrationPasses.jsx';
 import RichTextEditor from '../components/admin/RichTextEditor.jsx';
+import TeamAccounts from '../components/admin/TeamAccounts.jsx';
 import { adminRoutes } from '../components/admin/adminRoutes.js';
 import '../admin.css';
 import '../admin-updates.css';
@@ -330,6 +331,9 @@ export default function AdminPanel() {
       .then((s) => {
         setRole(s.role);
         if (s.role === 'event_staff' && section !== 'check-in') navigate('/admin/check-in');
+        if (s.role === 'article_publisher' && !['articles', 'media'].includes(section))
+          navigate('/admin/articles');
+        if (s.role !== 'administrator' && section === 'team-accounts') navigate('/admin/articles');
       })
       .catch(() => navigate('/admin/login'));
   }, [navigate, section]);
@@ -400,6 +404,7 @@ export default function AdminPanel() {
         )}
 
         {section === 'check-in' && <AdminCheckIn />}
+        {section === 'team-accounts' && role === 'administrator' && <TeamAccounts />}
         {section === 'registrations' && (
           <section>
             <p>

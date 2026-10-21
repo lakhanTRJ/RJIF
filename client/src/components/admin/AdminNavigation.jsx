@@ -5,7 +5,17 @@ export default function AdminNavigation({ role, section, onLogout }) {
   const groups =
     role === 'event_staff'
       ? [{ label: 'Event operations', items: adminRoutes.filter(([slug]) => slug === 'check-in') }]
-      : adminRouteGroups;
+      : role === 'article_publisher'
+        ? [
+            {
+              label: 'Article publishing',
+              items: adminRoutes.filter(([slug]) => ['articles', 'media'].includes(slug)),
+            },
+          ]
+        : adminRouteGroups.map((group) => ({
+            ...group,
+            items: group.items.filter(([slug]) => slug !== 'team-accounts' || role === 'administrator'),
+          }));
 
   return (
     <aside className="admin-nav">

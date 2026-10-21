@@ -14,7 +14,13 @@ export default function AdminLogin() {
         method: 'POST',
         body: JSON.stringify(Object.fromEntries(data)),
       });
-      navigate(session.role === 'event_staff' ? '/admin/check-in' : '/admin/home');
+      navigate(
+        session.role === 'event_staff'
+          ? '/admin/check-in'
+          : session.role === 'article_publisher'
+            ? '/admin/articles'
+            : '/admin/home',
+      );
     } catch (e) {
       setError(e.message);
     }
