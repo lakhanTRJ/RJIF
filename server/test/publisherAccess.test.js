@@ -48,6 +48,7 @@ test('publishers cannot read customer data, mutate website settings or manage ac
     'registrations/manual',
     'registrations/1/send-passes',
     'awards',
+    'awards/manual',
     'felicitation',
     'forums/india',
     'forums/india/settings',

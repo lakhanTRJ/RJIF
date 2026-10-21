@@ -8,6 +8,7 @@ import crypto from 'node:crypto';
 import { cleanArticleHtml, articleSlug } from '../articleContent.js';
 import { pool, query } from '../db.js';
 import { validateManualRegistration } from '../manualRegistration.js';
+import { validateManualAward, awardConfirmation } from '../manualAwards.js';
 import {
   issueCsrf,
   requireAdmin,
@@ -326,7 +327,7 @@ adminRouter.get('/awards', requireAdmin, async (req, res, next) => {
       content: {},
     };
     const applications = await query(
-      'SELECT public_id,categories,full_name,company,mobile,email,status,created_at FROM award_applications ORDER BY id DESC LIMIT 250',
+      "SELECT aa.*,o.payment_method,o.payment_reference,o.total_paise,o.discount_percent,o.discount_paise,o.discount_reason FROM award_applications aa LEFT JOIN commerce_orders o ON o.id=(SELECT MAX(co.id) FROM commerce_orders co WHERE co.award_application_id=aa.id AND co.status='paid') ORDER BY aa.id DESC LIMIT 250",
     );
     res.json({
       content: typeof settings.content === 'string' ? JSON.parse(settings.content) : settings.content,
@@ -335,6 +336,180 @@ adminRouter.get('/awards', requireAdmin, async (req, res, next) => {
     });
   } catch (error) {
     next(error);
+  }
+});
+
+adminRouter.post('/awards/manual', requireAdministrator, requireCsrf, async (req, res, next) => {
+  const connection = await pool.getConnection();
+  try {
+    const key = String(req.body.idempotency_key || '');
+    if (!/^[a-zA-Z0-9-]{16,100}$/.test(key))
+      return res.status(422).json({ error: 'Invalid registration session' });
+    await connection.beginTransaction();
+    const [[product]] = await connection.execute('SELECT * FROM commerce_products WHERE id=? FOR UPDATE', [
+      Number(req.body.product_id) || 0,
+    ]);
+    const hash = sha256(`manual-award:${key}`);
+    const [[existing]] = await connection.execute(
+      'SELECT public_id FROM commerce_orders WHERE idempotency_key=?',
+      [hash],
+    );
+    if (existing) {
+      await connection.rollback();
+      return res.json({ ok: true, duplicate: true });
+    }
+    const [[settings]] = await connection.execute('SELECT content FROM award_settings WHERE id=1');
+    const content = settings
+      ? typeof settings.content === 'string'
+        ? JSON.parse(settings.content)
+        : settings.content
+      : JSON.parse(
+          fs.readFileSync(new URL('../../../client/src/data/awards.content.json', import.meta.url), 'utf8'),
+        );
+    const allowed =
+      (content.accordions || []).find((s) => s.key === 'categories')?.groups?.map((s) => s.title) || [];
+    const data = validateManualAward(req.body, product, allowed);
+    const [[duplicate]] = await connection.execute(
+      'SELECT id FROM commerce_orders WHERE payment_method=? AND payment_reference=? LIMIT 1',
+      [data.method, data.reference],
+    );
+    if (duplicate)
+      throw Object.assign(new Error('This payment reference has already been recorded.'), { status: 409 });
+    let application;
+    if (req.body.application_public_id) {
+      const [[row]] = await connection.execute(
+        'SELECT * FROM award_applications WHERE public_id=? FOR UPDATE',
+        [String(req.body.application_public_id)],
+      );
+      if (!row || !['pending', 'payment_pending'].includes(row.status))
+        throw Object.assign(new Error('Choose an unpaid, non-cancelled award application.'), { status: 409 });
+      const [[active]] = await connection.execute(
+        "SELECT id FROM commerce_orders WHERE award_application_id=? AND (status='paid' OR provider_order_id IS NOT NULL) LIMIT 1 FOR UPDATE",
+        [row.id],
+      );
+      if (active)
+        throw Object.assign(
+          new Error(
+            'This application already has a payment or online payment attempt. Verify its Razorpay status before recording an offline payment; do not create a duplicate application.',
+          ),
+          { status: 409 },
+        );
+      application = { ...row, ...data.fields, categories: data.categories };
+      await connection.execute(
+        "UPDATE award_applications SET categories=?,full_name=?,company=?,mobile=?,email=?,coordinator_name=?,coordinator_number=?,gstin=?,city=?,state=?,billing_address=?,status='paid' WHERE id=?",
+        [
+          JSON.stringify(data.categories),
+          ...[
+            'full_name',
+            'company',
+            'mobile',
+            'email',
+            'coordinator_name',
+            'coordinator_number',
+            'gstin',
+            'city',
+            'state',
+            'billing_address',
+          ].map((s) => data.fields[s] || null),
+          row.id,
+        ],
+      );
+    } else {
+      application = { ...data.fields, categories: data.categories, public_id: crypto.randomUUID() };
+      const [insert] = await connection.execute(
+        "INSERT INTO award_applications (public_id,categories,full_name,company,mobile,email,coordinator_name,coordinator_number,gstin,city,state,billing_address,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'paid')",
+        [
+          application.public_id,
+          JSON.stringify(data.categories),
+          ...[
+            'full_name',
+            'company',
+            'mobile',
+            'email',
+            'coordinator_name',
+            'coordinator_number',
+            'gstin',
+            'city',
+            'state',
+            'billing_address',
+          ].map((s) => data.fields[s] || null),
+        ],
+      );
+      application.id = insert.insertId;
+    }
+    if (product.inventory_limit !== null) {
+      const [[sold]] = await connection.execute(
+        "SELECT COALESCE(SUM(quantity),0) AS total FROM commerce_orders WHERE product_id=? AND status IN ('paid','payment_created')",
+        [product.id],
+      );
+      if (Number(sold.total) + 1 > Number(product.inventory_limit))
+        throw Object.assign(new Error('Award registration capacity has been reached.'), { status: 409 });
+    }
+    const p = data.pricing;
+    const [order] = await connection.execute(
+      "INSERT INTO commerce_orders (public_id,idempotency_key,product_id,award_application_id,quantity,subtotal_paise,tax_paise,total_paise,currency,customer_name,company,email,phone,gstin,billing_address,status,consented_at,policy_version,paid_at,payment_method,payment_reference,payment_notes,recorded_by,discount_percent,discount_paise,discount_reason) VALUES (?,?,?,?,1,?,?,?,?,?,?,?,?,?,?,'paid',NOW(),'admin-manual-award-v1',?,?,?,?,?,?,?,?)",
+      [
+        crypto.randomUUID(),
+        hash,
+        product.id,
+        application.id,
+        p.subtotal,
+        p.tax,
+        p.total,
+        product.currency,
+        data.fields.full_name,
+        data.fields.company,
+        data.fields.email,
+        data.fields.mobile,
+        data.fields.gstin || null,
+        data.fields.billing_address,
+        data.paidAt,
+        data.method,
+        data.reference,
+        data.notes || null,
+        req.session.adminId,
+        p.discountPercent,
+        p.discount,
+        data.reason || null,
+      ],
+    );
+    await connection.execute(
+      "INSERT INTO email_jobs (kind,dedupe_key,order_id,recipient,payload) VALUES ('form_notification',?,?,?,?)",
+      [
+        `award:${order.insertId}:confirmed`,
+        order.insertId,
+        data.fields.email,
+        JSON.stringify(awardConfirmation(application, p.total, product.currency)),
+      ],
+    );
+    await connection.execute(
+      'INSERT INTO admin_audit_log (admin_user_id,action,entity_type,entity_id,metadata) VALUES (?,?,?,?,?)',
+      [
+        req.session.adminId,
+        'manual_award_payment',
+        'commerce_order',
+        String(order.insertId),
+        JSON.stringify({
+          payment_method: data.method,
+          payment_reference: data.reference,
+          ...p,
+          discount_reason: data.reason,
+        }),
+      ],
+    );
+    await connection.commit();
+    res.status(201).json({ ok: true, applicationId: application.public_id, emailQueued: true });
+  } catch (error) {
+    await connection.rollback();
+    if (error.code === 'ER_DUP_ENTRY')
+      return res.status(409).json({
+        error:
+          'This payment or registration has already been recorded. Check the registration list before retrying.',
+      });
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    next(error);
+  } finally {
+    connection.release();
   }
 });
 
@@ -880,6 +1055,13 @@ adminRouter.post(
         ])
       )[0];
       if (!order) return res.status(404).json({ error: 'Registration not found' });
+      if (order.award_application_id)
+        return res
+          .status(422)
+          .json({
+            error:
+              'Use Business awards → Offline / NEFT award registration to record an award payment with its reference and discount.',
+          });
       if (order.status !== 'paid')
         await query("UPDATE commerce_orders SET status='paid',paid_at=NOW() WHERE id=?", [order.id]);
       if (order.award_application_id)

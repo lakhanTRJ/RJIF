@@ -1,0 +1,4 @@
+ALTER TABLE commerce_orders
+  ADD COLUMN discount_percent DECIMAL(5,2) NOT NULL DEFAULT 0,
+  ADD COLUMN discount_paise INT UNSIGNED NOT NULL DEFAULT 0,
+  ADD COLUMN discount_reason VARCHAR(500) NULL;

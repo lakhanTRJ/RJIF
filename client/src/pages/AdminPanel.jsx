@@ -9,6 +9,7 @@ import ManualRegistrationForm from '../components/admin/ManualRegistrationForm.j
 import RegistrationPasses from '../components/admin/RegistrationPasses.jsx';
 import RichTextEditor from '../components/admin/RichTextEditor.jsx';
 import TeamAccounts from '../components/admin/TeamAccounts.jsx';
+import ManualAwardForm from '../components/admin/ManualAwardForm.jsx';
 import { adminRoutes } from '../components/admin/adminRoutes.js';
 import '../admin.css';
 import '../admin-updates.css';
@@ -1567,6 +1568,12 @@ export default function AdminPanel() {
               Save awards page
             </button>
             <h2>Recent award registrations</h2>
+            {role === 'administrator' && (
+              <ManualAwardForm
+                awards={awards}
+                onCreated={async () => setAwards(await api('/admin/awards'))}
+              />
+            )}
             {awards.applications?.length ? (
               <div className="table-wrap">
                 <table>
@@ -1595,7 +1602,21 @@ export default function AdminPanel() {
                             : row.categories
                           ).join(', ')}
                         </td>
-                        <td>{row.status}</td>
+                        <td>
+                          {row.status}
+                          {row.payment_method && (
+                            <small>
+                              <br />
+                              {row.payment_method.toUpperCase()} · {row.payment_reference}
+                              <br />
+                              Paid ₹{(Number(row.total_paise) / 100).toFixed(2)}
+                              <br />
+                              Discount {row.discount_percent}% (₹
+                              {(Number(row.discount_paise) / 100).toFixed(2)})<br />
+                              {row.discount_reason}
+                            </small>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
