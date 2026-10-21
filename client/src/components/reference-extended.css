@@ -1661,6 +1661,23 @@
   font-size: 36px;
   line-height: 1.2;
 }
+.blog-article-body iframe,
+.admin-rich-editor-area iframe {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  border: 0;
+  margin: 24px 0;
+}
+.blog-article-body iframe[src^="https://www.instagram.com/"],
+.admin-rich-editor-area iframe[src^="https://www.instagram.com/"]
+{
+  max-width: 540px;
+  height: 680px;
+  aspect-ratio: auto;
+  margin: 24px auto;
+}
 .blog-article-body h3 {
   margin: 1.7em 0 0.5em;
   font-size: 27px;

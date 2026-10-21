@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { articleEmbed } from '../../articleEmbeds.js';
 
 const commands = [
   ['formatBlock', 'Paragraph', 'Paragraph', 'p'],
@@ -30,6 +31,19 @@ export default function RichTextEditor({ label = 'Article content', name, value 
     const url = window.prompt('Paste the full link, including https://');
     if (url) run('createLink', url);
   };
+  const addEmbed = () => {
+    const url = window.prompt('Paste a YouTube video or public Instagram post/reel link');
+    if (!url) return;
+    const embed = articleEmbed(url);
+    if (!embed) {
+      window.alert('Please enter a valid HTTPS YouTube video or Instagram post/reel link.');
+      return;
+    }
+    run(
+      'insertHTML',
+      `<iframe src="${embed.src}" title="${embed.provider} embed" loading="lazy" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe><p><br></p>`,
+    );
+  };
 
   return (
     <div className="admin-rich-editor">
@@ -49,6 +63,9 @@ export default function RichTextEditor({ label = 'Article content', name, value 
         ))}
         <button type="button" onClick={addLink}>
           Link
+        </button>
+        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={addEmbed}>
+          Insert YouTube / Instagram
         </button>
         <button type="button" onClick={() => run('unlink')}>
           Remove link
@@ -71,7 +88,8 @@ export default function RichTextEditor({ label = 'Article content', name, value 
       />
       {name && <input type="hidden" name={name} value={value} readOnly />}
       <small>
-        Write normally or paste text, then select text to apply headings, lists, links or emphasis.
+        Write normally or paste text, then select text to apply headings, lists, links or emphasis. Use Insert
+        YouTube / Instagram to preview a video or public post. Private or restricted content may not play.
       </small>
     </div>
   );

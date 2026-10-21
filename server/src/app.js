@@ -54,6 +54,7 @@ export function createApp() {
             "'self'",
             'https://www.youtube.com',
             'https://www.youtube-nocookie.com',
+            'https://www.instagram.com',
             'https://api.razorpay.com',
             'https://checkout.razorpay.com',
           ],

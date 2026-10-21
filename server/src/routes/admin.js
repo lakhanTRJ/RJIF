@@ -5,7 +5,7 @@ import multer from 'multer';
 import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
-import sanitizeHtml from 'sanitize-html';
+import { cleanArticleHtml, articleSlug } from '../articleContent.js';
 import { pool, query } from '../db.js';
 import { validateManualRegistration } from '../manualRegistration.js';
 import { issueCsrf, requireAdmin, requireAdministrator, requireCsrf } from '../security.js';
@@ -1106,14 +1106,9 @@ adminRouter.put('/testimonials/:id', requireAdmin, requireCsrf, async (req, res,
   }
 });
 
-const cleanArticleHtml = (value) =>
-  sanitizeHtml(String(value || ''), {
-    allowedTags: ['p', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'strong', 'em', 'a', 'blockquote', 'br'],
-    allowedAttributes: { a: ['href', 'target', 'rel'] },
-    allowedSchemes: ['http', 'https', 'mailto', 'tel'],
-  });
 adminRouter.get('/articles', requireAdmin, async (req, res, next) => {
   try {
+    res.set('Cache-Control', 'no-store');
     res.json(
       await query(
         'SELECT id,slug,title,excerpt,category,body_html,featured_image_url,seo_title,seo_description,status,publish_at,updated_at FROM articles ORDER BY updated_at DESC',
@@ -1125,13 +1120,18 @@ adminRouter.get('/articles', requireAdmin, async (req, res, next) => {
 });
 adminRouter.post('/articles', requireAdmin, requireCsrf, async (req, res, next) => {
   try {
-    const slug = String(req.body.slug || '')
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9-]+/g, '-')
-      .replace(/^-|-$/g, '');
     const title = String(req.body.title || '').trim();
-    if (!slug || !title) return res.status(422).json({ error: 'Title and slug are required' });
+    if (!title) return res.status(422).json({ error: 'Title is required' });
+    const customSlug = String(req.body.slug || '').trim();
+    const baseSlug = articleSlug(customSlug || title);
+    if (customSlug && !baseSlug) return res.status(422).json({ error: 'Enter a valid slug' });
+    let slug = baseSlug || 'article';
+    if (!customSlug) {
+      let suffix = 2;
+      while ((await query('SELECT id FROM articles WHERE slug=? LIMIT 1', [slug])).length) {
+        slug = `${baseSlug || 'article'}-${suffix++}`;
+      }
+    }
     const category =
       String(req.body.category || 'Industry Insights')
         .trim()

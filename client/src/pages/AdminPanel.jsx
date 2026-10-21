@@ -306,6 +306,7 @@ export default function AdminPanel() {
   const [showArticleCreate, setShowArticleCreate] = useState(false);
   const [editingArticleId, setEditingArticleId] = useState(null);
   const [articleSearch, setArticleSearch] = useState('');
+  const [articleSaving, setArticleSaving] = useState(false);
   const [content, setContent] = useState({ settings: {}, speakers: [], agenda: [], gallery: [] });
   const notify = (message) => setNotice(message);
   const update = (key, index, patch) =>
@@ -1656,19 +1657,31 @@ export default function AdminPanel() {
                 className="admin-card admin-article-create"
                 onSubmit={async (e) => {
                   e.preventDefault();
-                  if (!newArticleBody.replace(/<[^>]*>/g, '').trim()) {
+                  if (articleSaving) return;
+                  if (!newArticleBody.replace(/<[^>]*>/g, '').trim() && !newArticleBody.includes('<iframe')) {
                     notify('Please add the article content.');
                     return;
                   }
-                  await api('/admin/articles', {
-                    method: 'POST',
-                    body: JSON.stringify(Object.fromEntries(new FormData(e.currentTarget))),
-                  });
-                  e.currentTarget.reset();
-                  setNewArticleBody('');
-                  setShowArticleCreate(false);
-                  setArticles(await api('/admin/articles'));
-                  notify('Draft created.');
+                  const body = JSON.stringify(Object.fromEntries(new FormData(e.currentTarget)));
+                  setArticleSaving(true);
+                  let created = false;
+                  try {
+                    await api('/admin/articles', { method: 'POST', body });
+                    created = true;
+                    setNewArticleBody('');
+                    setShowArticleCreate(false);
+                    setArticleSearch('');
+                    setArticles(await api('/admin/articles'));
+                    notify('Draft created.');
+                  } catch (error) {
+                    notify(
+                      created
+                        ? 'Draft saved, but the list could not refresh. Refresh the page to see it.'
+                        : error.message,
+                    );
+                  } finally {
+                    setArticleSaving(false);
+                  }
                 }}
               >
                 <h2>Create a new article</h2>
@@ -1677,8 +1690,8 @@ export default function AdminPanel() {
                   <input name="title" required />
                 </label>
                 <label>
-                  Slug
-                  <input name="slug" placeholder="example-article-title" required />
+                  Slug (optional)
+                  <input name="slug" placeholder="Leave blank to generate from the title" />
                 </label>
                 <label>
                   Excerpt
@@ -1695,7 +1708,9 @@ export default function AdminPanel() {
                   value={newArticleBody}
                   onChange={setNewArticleBody}
                 />
-                <button className="button small">Create draft</button>
+                <button className="button small" disabled={articleSaving}>
+                  {articleSaving ? 'Saving…' : 'Create draft'}
+                </button>
               </form>
             )}
             <div className="admin-article-list">
@@ -1803,17 +1818,32 @@ export default function AdminPanel() {
                             <button
                               type="button"
                               className="button small"
+                              disabled={articleSaving}
                               onClick={async () => {
-                                await api(`/admin/articles/${a.id}`, {
-                                  method: 'PUT',
-                                  body: JSON.stringify(a),
-                                });
-                                setArticles(await api('/admin/articles'));
-                                setEditingArticleId(null);
-                                notify('Article saved.');
+                                if (articleSaving) return;
+                                setArticleSaving(true);
+                                let saved = false;
+                                try {
+                                  await api(`/admin/articles/${a.id}`, {
+                                    method: 'PUT',
+                                    body: JSON.stringify(a),
+                                  });
+                                  saved = true;
+                                  setArticles(await api('/admin/articles'));
+                                  setEditingArticleId(null);
+                                  notify('Article saved.');
+                                } catch (error) {
+                                  notify(
+                                    saved
+                                      ? 'Article saved, but the list could not refresh. Refresh the page to see it.'
+                                      : error.message,
+                                  );
+                                } finally {
+                                  setArticleSaving(false);
+                                }
                               }}
                             >
-                              Save article
+                              {articleSaving ? 'Saving…' : 'Save article'}
                             </button>
                             {a.status === 'published' && (
                               <a

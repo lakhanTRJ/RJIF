@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import sanitizeHtml from 'sanitize-html';
+import { cleanArticleHtml } from '../articleContent.js';
 import crypto from 'node:crypto';
 import { pool, query } from '../db.js';
 import { config } from '../config.js';
@@ -51,11 +52,7 @@ export async function getPublishedArticle(slug) {
     [slug],
   );
   if (!rows[0]) return null;
-  rows[0].body_html = sanitizeHtml(rows[0].body_html, {
-    allowedTags: ['p', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'strong', 'em', 'a', 'blockquote', 'br'],
-    allowedAttributes: { a: ['href', 'target', 'rel'] },
-    allowedSchemes: ['http', 'https', 'mailto', 'tel'],
-  });
+  rows[0].body_html = cleanArticleHtml(rows[0].body_html);
   return rows[0];
 }
 
