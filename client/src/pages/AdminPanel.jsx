@@ -6,6 +6,7 @@ import DocumentUploadField from '../components/admin/DocumentUploadField.jsx';
 import AdminCheckIn from '../components/admin/AdminCheckIn.jsx';
 import AdminNavigation from '../components/admin/AdminNavigation.jsx';
 import ManualRegistrationForm from '../components/admin/ManualRegistrationForm.jsx';
+import RegistrationPasses from '../components/admin/RegistrationPasses.jsx';
 import RichTextEditor from '../components/admin/RichTextEditor.jsx';
 import { adminRoutes } from '../components/admin/adminRoutes.js';
 import '../admin.css';
@@ -469,6 +470,7 @@ export default function AdminPanel() {
                         )}
                       </td>
                       <td>
+                        <RegistrationPasses orderId={row.id} notify={notify} />
                         {row.status !== 'paid' ||
                         (Number(row.pass_count) === 0 && Number(row.attendee_count) > 0) ? (
                           <button
@@ -490,7 +492,7 @@ export default function AdminPanel() {
                               onClick={async () => {
                                 try {
                                   await api(`/admin/registrations/${row.id}/send-passes`, { method: 'POST' });
-                                  notify('Pass email sent.');
+                                  notify('Pass email queued. Delivery depends on the email provider.');
                                 } catch (error) {
                                   notify(error.message);
                                 }

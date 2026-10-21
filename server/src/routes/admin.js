@@ -16,6 +16,7 @@ import {
   issuePassesForOrder,
   queuePassEmail,
   orderToken,
+  passToken,
   sha256,
   tokenFromScan,
 } from '../passService.js';
@@ -784,29 +785,23 @@ adminRouter.post('/registrations/manual', requireAdministrator, requireCsrf, asy
     committed = true;
     await issuePassesForOrder(result.insertId);
     const email = await queuePassEmail(result.insertId);
-    res
-      .status(201)
-      .json({
-        ok: true,
-        email,
-        manageUrl: `/registration/?token=${encodeURIComponent(orderToken(publicId))}`,
-      });
+    res.status(201).json({
+      ok: true,
+      email,
+      manageUrl: `/registration/?token=${encodeURIComponent(orderToken(publicId))}`,
+    });
   } catch (error) {
     if (!committed) await connection.rollback();
     if (committed)
-      return res
-        .status(503)
-        .json({
-          error:
-            'Payment registration saved. Open Registrations and use Mark paid to retry issuing the passes.',
-        });
+      return res.status(503).json({
+        error:
+          'Payment registration saved. Open Registrations and use Mark paid to retry issuing the passes.',
+      });
     if (error.code === 'ER_DUP_ENTRY')
-      return res
-        .status(409)
-        .json({
-          error:
-            'This registration or payment reference has already been recorded. Check Registrations before trying again.',
-        });
+      return res.status(409).json({
+        error:
+          'This registration or payment reference has already been recorded. Check Registrations before trying again.',
+      });
     if (error.status) return res.status(error.status).json({ error: error.message });
     next(error);
   } finally {
@@ -824,6 +819,40 @@ adminRouter.get('/registrations', requireAdmin, async (req, res, next) => {
     next(error);
   }
 });
+adminRouter.get('/registrations/:id/passes', requireAdmin, async (req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    const [order] = await query(
+      'SELECT o.id,o.public_id,o.status,p.kind,p.member_count,o.quantity FROM commerce_orders o JOIN commerce_products p ON p.id=o.product_id WHERE o.id=? LIMIT 1',
+      [req.params.id],
+    );
+    if (!order) return res.status(404).json({ error: 'Registration not found' });
+    const rows =
+      order.status === 'paid' && order.kind === 'delegate_pass'
+        ? await query(
+            'SELECT dp.pass_number,dp.status,oa.full_name,oa.email FROM digital_passes dp LEFT JOIN order_attendees oa ON oa.id=dp.attendee_id WHERE dp.order_id=? ORDER BY dp.id',
+            [order.id],
+          )
+        : [];
+    res.json({
+      status: order.status,
+      kind: order.kind,
+      capacity: Number(order.member_count) * Number(order.quantity),
+      manageUrl: `/registration/?token=${encodeURIComponent(orderToken(order.public_id))}`,
+      passes: rows.map((pass) => {
+        const token = encodeURIComponent(passToken(pass.pass_number));
+        return {
+          ...pass,
+          viewUrl: `/delegate-pass/?token=${token}`,
+          pdfUrl: `/api/public/passes/${token}/pdf`,
+        };
+      }),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 adminRouter.post(
   '/registrations/:id/mark-paid',
   requireAdministrator,
