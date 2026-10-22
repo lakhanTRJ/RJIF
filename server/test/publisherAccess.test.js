@@ -43,6 +43,7 @@ test('publishers cannot read customer data, mutate website settings or manage ac
     'submissions',
     'submissions.csv',
     'products',
+    'products/1/regenerate-link',
     'registrations',
     'registrations/1/passes',
     'registrations/manual',

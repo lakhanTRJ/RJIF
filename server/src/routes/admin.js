@@ -9,6 +9,7 @@ import { cleanArticleHtml, articleSlug } from '../articleContent.js';
 import { pool, query } from '../db.js';
 import { validateManualRegistration } from '../manualRegistration.js';
 import { validateManualAward, awardConfirmation } from '../manualAwards.js';
+import { regenerateComplimentaryLink } from '../complimentaryLinks.js';
 import {
   issueCsrf,
   requireAdmin,
@@ -320,6 +321,28 @@ adminRouter.post('/products', requireAdministrator, requireCsrf, async (req, res
     next(error);
   }
 });
+
+adminRouter.post(
+  '/products/:id/regenerate-link',
+  requireAdministrator,
+  requireCsrf,
+  async (req, res, next) => {
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const result = await regenerateComplimentaryLink(connection, req.params.id, req.session.adminId);
+      await connection.commit();
+      res.set('Cache-Control', 'no-store');
+      res.json(result);
+    } catch (error) {
+      await connection.rollback();
+      if (error.status) return res.status(error.status).json({ error: error.message });
+      next(error);
+    } finally {
+      connection.release();
+    }
+  },
+);
 
 adminRouter.get('/awards', requireAdmin, async (req, res, next) => {
   try {
@@ -1056,12 +1079,10 @@ adminRouter.post(
       )[0];
       if (!order) return res.status(404).json({ error: 'Registration not found' });
       if (order.award_application_id)
-        return res
-          .status(422)
-          .json({
-            error:
-              'Use Business awards → Offline / NEFT award registration to record an award payment with its reference and discount.',
-          });
+        return res.status(422).json({
+          error:
+            'Use Business awards → Offline / NEFT award registration to record an award payment with its reference and discount.',
+        });
       if (order.status !== 'paid')
         await query("UPDATE commerce_orders SET status='paid',paid_at=NOW() WHERE id=?", [order.id]);
       if (order.award_application_id)

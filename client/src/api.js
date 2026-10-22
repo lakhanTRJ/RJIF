@@ -5,6 +5,7 @@ export async function api(path, options = {}) {
   const isFormData = options.body instanceof FormData;
   const response = await fetch(`/api${path}`, {
     credentials: 'include',
+    ...(path.startsWith('/admin/') ? { cache: 'no-store' } : {}),
     headers: {
       ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
       ...(csrfToken && !['GET', 'HEAD'].includes(method) ? { 'X-CSRF-Token': csrfToken } : {}),

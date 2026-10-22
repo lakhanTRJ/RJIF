@@ -309,6 +309,7 @@ export default function AdminPanel() {
   const [editingArticleId, setEditingArticleId] = useState(null);
   const [articleSearch, setArticleSearch] = useState('');
   const [articleSaving, setArticleSaving] = useState(false);
+  const [complimentaryBusy, setComplimentaryBusy] = useState(false);
   const [content, setContent] = useState({ settings: {}, speakers: [], agenda: [], gallery: [] });
   const notify = (message) => setNotice(message);
   const update = (key, index, patch) =>
@@ -371,6 +372,7 @@ export default function AdminPanel() {
   }
   async function saveSettings() {
     await api(`/admin/forums/${forum}/settings`, { method: 'PUT', body: JSON.stringify(content.settings) });
+    await reloadForum();
     notify('Settings saved.');
   }
   async function uploadMedia(event) {
@@ -527,11 +529,12 @@ export default function AdminPanel() {
               className="admin-card"
               onSubmit={async (event) => {
                 event.preventDefault();
+                const form = event.currentTarget;
                 await api('/admin/event-staff', {
                   method: 'POST',
-                  body: JSON.stringify(Object.fromEntries(new FormData(event.currentTarget))),
+                  body: JSON.stringify(Object.fromEntries(new FormData(form))),
                 });
-                event.currentTarget.reset();
+                form.reset();
                 setEventStaff(await api('/admin/event-staff'));
                 notify('Event staff account created.');
               }}
@@ -622,6 +625,7 @@ export default function AdminPanel() {
                   disabled={role !== 'administrator'}
                   onClick={async () => {
                     await api(`/admin/pages/${page.id}`, { method: 'PUT', body: JSON.stringify(page) });
+                    setPages(await api('/admin/pages'));
                     notify('Page saved.');
                   }}
                 >
@@ -834,10 +838,11 @@ export default function AdminPanel() {
               className="admin-card"
               onSubmit={async (e) => {
                 e.preventDefault();
-                const body = Object.fromEntries(new FormData(e.currentTarget));
+                const form = e.currentTarget;
+                const body = Object.fromEntries(new FormData(form));
                 body.is_featured = Boolean(body.is_featured);
                 await api(`/admin/forums/${forum}/speakers`, { method: 'POST', body: JSON.stringify(body) });
-                e.currentTarget.reset();
+                form.reset();
                 await reloadForum();
                 notify('Speaker added.');
               }}
@@ -907,6 +912,7 @@ export default function AdminPanel() {
                         method: 'PUT',
                         body: JSON.stringify(speaker),
                       });
+                      await reloadForum();
                       notify('Speaker saved.');
                     }}
                   >
@@ -926,11 +932,12 @@ export default function AdminPanel() {
               className="admin-card"
               onSubmit={async (e) => {
                 e.preventDefault();
+                const form = e.currentTarget;
                 await api(`/admin/forums/${forum}/agenda`, {
                   method: 'POST',
-                  body: JSON.stringify(Object.fromEntries(new FormData(e.currentTarget))),
+                  body: JSON.stringify(Object.fromEntries(new FormData(form))),
                 });
-                e.currentTarget.reset();
+                form.reset();
                 await reloadForum();
                 notify('Agenda item added.');
               }}
@@ -984,6 +991,7 @@ export default function AdminPanel() {
                     className="button small"
                     onClick={async () => {
                       await api(`/admin/agenda/${item.id}`, { method: 'PUT', body: JSON.stringify(item) });
+                      await reloadForum();
                       notify('Agenda item saved.');
                     }}
                   >
@@ -1005,11 +1013,12 @@ export default function AdminPanel() {
               className="admin-card"
               onSubmit={async (e) => {
                 e.preventDefault();
+                const form = e.currentTarget;
                 await api(`/admin/forums/${forum}/gallery`, {
                   method: 'POST',
-                  body: JSON.stringify(Object.fromEntries(new FormData(e.currentTarget))),
+                  body: JSON.stringify(Object.fromEntries(new FormData(form))),
                 });
-                e.currentTarget.reset();
+                form.reset();
                 await reloadForum();
                 notify('Gallery image added.');
               }}
@@ -1084,6 +1093,7 @@ export default function AdminPanel() {
                     className="button small"
                     onClick={async () => {
                       await api(`/admin/gallery/${item.id}`, { method: 'PUT', body: JSON.stringify(item) });
+                      await reloadForum();
                       notify('Gallery image saved.');
                     }}
                   >
@@ -1106,11 +1116,12 @@ export default function AdminPanel() {
               className="admin-card"
               onSubmit={async (e) => {
                 e.preventDefault();
+                const form = e.currentTarget;
                 await api('/admin/highlights', {
                   method: 'POST',
-                  body: JSON.stringify(Object.fromEntries(new FormData(e.currentTarget))),
+                  body: JSON.stringify(Object.fromEntries(new FormData(form))),
                 });
-                e.currentTarget.reset();
+                form.reset();
                 setHighlights(await api('/admin/highlights'));
                 notify('Highlight video added.');
               }}
@@ -1205,6 +1216,7 @@ export default function AdminPanel() {
                           method: 'PUT',
                           body: JSON.stringify(item),
                         });
+                        setHighlights(await api('/admin/highlights'));
                         notify('Highlight saved.');
                       }}
                     >
@@ -1224,9 +1236,10 @@ export default function AdminPanel() {
               className="admin-card"
               onSubmit={async (e) => {
                 e.preventDefault();
-                const body = { ...Object.fromEntries(new FormData(e.currentTarget)), forum };
+                const form = e.currentTarget;
+                const body = { ...Object.fromEntries(new FormData(form)), forum };
                 await api('/admin/testimonials', { method: 'POST', body: JSON.stringify(body) });
-                e.currentTarget.reset();
+                form.reset();
                 setTestimonials(await api(`/admin/testimonials?forum=${forum}`));
                 notify('Testimonial added.');
               }}
@@ -1303,6 +1316,7 @@ export default function AdminPanel() {
                         method: 'PUT',
                         body: JSON.stringify(item),
                       });
+                      setTestimonials(await api(`/admin/testimonials?forum=${forum}`));
                       notify('Testimonial saved.');
                     }}
                   >
@@ -1322,7 +1336,10 @@ export default function AdminPanel() {
             {complimentaryLink && (
               <article className="admin-card">
                 <h2>Copy this link now</h2>
-                <p>This secure link cannot be recovered later. Store it safely before leaving this page.</p>
+                <p>
+                  This link is shown only now. Copy and store it safely. Regenerating replaces the previous
+                  invitation link, but keeps issued QR passes valid.
+                </p>
                 <code>
                   {window.location.origin}
                   {complimentaryLink}
@@ -1330,9 +1347,14 @@ export default function AdminPanel() {
                 <button
                   type="button"
                   className="button small secondary"
-                  onClick={() =>
-                    navigator.clipboard.writeText(`${window.location.origin}${complimentaryLink}`)
-                  }
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(`${window.location.origin}${complimentaryLink}`);
+                      notify('Complimentary invitation link copied. Share it privately.');
+                    } catch {
+                      notify('Could not copy automatically. Select and copy the link shown above.');
+                    }
+                  }}
                 >
                   Copy link
                 </button>
@@ -1342,14 +1364,25 @@ export default function AdminPanel() {
               className="admin-card"
               onSubmit={async (e) => {
                 e.preventDefault();
-                const result = await api('/admin/products', {
-                  method: 'POST',
-                  body: JSON.stringify(Object.fromEntries(new FormData(e.currentTarget))),
-                });
-                e.currentTarget.reset();
-                setProducts(await api('/admin/products'));
-                setComplimentaryLink(result.checkoutUrl);
-                notify('Complimentary pass created. Copy the secure link now.');
+                if (complimentaryBusy) return;
+                const form = e.currentTarget;
+                const body = JSON.stringify(Object.fromEntries(new FormData(form)));
+                setComplimentaryBusy(true);
+                try {
+                  const result = await api('/admin/products', { method: 'POST', body });
+                  setComplimentaryLink(result.checkoutUrl);
+                  form.reset();
+                  notify('Complimentary pass created. Copy the secure link now.');
+                  try {
+                    setProducts(await api('/admin/products'));
+                  } catch {
+                    notify('Pass created. Copy the link now; the list could not refresh.');
+                  }
+                } catch (error) {
+                  notify(error.message);
+                } finally {
+                  setComplimentaryBusy(false);
+                }
               }}
             >
               <h2>Create complimentary pass</h2>
@@ -1389,8 +1422,8 @@ export default function AdminPanel() {
                 Order
                 <input name="sort_order" type="number" defaultValue="10" />
               </label>
-              <button className="button small" disabled={role !== 'administrator'}>
-                Create free pass
+              <button className="button small" disabled={role !== 'administrator' || complimentaryBusy}>
+                {complimentaryBusy ? 'Saving…' : 'Create free pass'}
               </button>
             </form>
             <div className="admin-list">
@@ -1405,6 +1438,40 @@ export default function AdminPanel() {
                       share link is intentionally not stored.
                     </p>
                   )}
+                  {Number(p.sale_price_paise) === 0 &&
+                    p.kind === 'delegate_pass' &&
+                    role === 'administrator' && (
+                      <button
+                        type="button"
+                        className="button small secondary"
+                        disabled={complimentaryBusy}
+                        onClick={async () => {
+                          if (
+                            !window.confirm(
+                              `Generate a new invitation link for ${p.name}? Any previous invitation link will stop working. Already-issued QR passes and redemption counts will not change. Save any edited limits or expiry first.`,
+                            )
+                          )
+                            return;
+                          setComplimentaryBusy(true);
+                          try {
+                            const result = await api(`/admin/products/${p.id}/regenerate-link`, {
+                              method: 'POST',
+                            });
+                            setComplimentaryLink(result.checkoutUrl);
+                            notify(
+                              `New invitation link generated for ${p.name}. Copy it from the top of this tab.`,
+                            );
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          } catch (error) {
+                            notify(error.message);
+                          } finally {
+                            setComplimentaryBusy(false);
+                          }
+                        }}
+                      >
+                        Regenerate invitation link
+                      </button>
+                    )}
                   {[
                     ['Name', 'name'],
                     ['Description', 'description', 'textarea'],
@@ -1446,6 +1513,7 @@ export default function AdminPanel() {
                     disabled={role !== 'administrator'}
                     onClick={async () => {
                       await api(`/admin/products/${p.id}`, { method: 'PUT', body: JSON.stringify(p) });
+                      setProducts(await api('/admin/products'));
                       notify('Pass saved.');
                     }}
                   >
@@ -1566,6 +1634,7 @@ export default function AdminPanel() {
                   method: 'PUT',
                   body: JSON.stringify({ content: awards.content }),
                 });
+                setAwards(await api('/admin/awards'));
                 notify('Awards page saved.');
               }}
             >
@@ -1652,6 +1721,7 @@ export default function AdminPanel() {
                     method: 'PUT',
                     body: JSON.stringify(felicitation),
                   });
+                  setFelicitation(await api('/admin/felicitation'));
                   notify('Felicitation video banner saved.');
                 }}
               >
