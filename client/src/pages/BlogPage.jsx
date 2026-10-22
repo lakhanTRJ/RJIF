@@ -32,7 +32,7 @@ export default function BlogPage() {
     if (!state.loading && !state.error)
       document.title = slug
         ? state.data?.seo_title || state.data?.title || 'Article'
-        : 'Insights & Ideas | Retail Jeweller India Forum';
+        : 'Beyond the Forum | Retail Jeweller India Forum';
   }, [slug, state]);
   if (state.loading)
     return (
@@ -57,11 +57,14 @@ export default function BlogPage() {
       <BlogShell path={pathname}>
         <main>
           <header className="blog-hero">
-            <div>
-              <p className="blog-kicker">Retail intelligence</p>
-              <h1>Insights &amp; Ideas</h1>
-              <p>Perspectives, market shifts and conversations shaping the future of jewellery retail.</p>
-            </div>
+            <h1>Beyond the Forum</h1>
+            <img
+              src="/reference/2026/09/beyond-the-forum-blog-banner.png"
+              alt="The Retail Jeweller Forum. Beyond the Forum. The conversations, perspectives and ideas shaping the future of jewellery retail."
+              width="2172"
+              height="724"
+              fetchPriority="high"
+            />
           </header>
           <section className="blog-page">
             <div className="blog-section-heading">
@@ -69,7 +72,6 @@ export default function BlogPage() {
                 <span>From the Forum</span>
                 <h2>Latest Articles</h2>
               </div>
-              <p>Knowledge and practical thinking from India’s jewellery retail community.</p>
             </div>
             {state.data.length ? (
               <div className="blog-grid">

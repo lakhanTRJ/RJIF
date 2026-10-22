@@ -1442,16 +1442,13 @@
   color: #272220;
 }
 .blog-hero {
-  min-height: 360px;
-  display: grid;
-  place-items: center;
-  padding: 70px 24px;
-  background: linear-gradient(120deg, #211d1e 0, #211d1e 62%, #85121f 62%, #d01824 100%);
-  color: #fff;
-  text-align: center;
+  position: relative;
+  background: #280000;
 }
-.blog-hero > div {
-  width: min(850px, 100%);
+.blog-hero img {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 .blog-kicker {
   margin: 0 0 16px;
@@ -1465,9 +1462,14 @@
   color: #fff;
 }
 .blog-hero h1 {
-  margin: 0;
-  font-size: clamp(48px, 7vw, 82px);
-  line-height: 1.02;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .blog-hero p:last-child {
   max-width: 700px;
@@ -1823,9 +1825,6 @@
   .blog-detail-page {
     width: min(100% - 28px, 1220px);
     padding-top: 56px;
-  }
-  .blog-hero {
-    min-height: 300px;
   }
   .blog-hero p:last-child {
     font-size: 17px;

@@ -643,10 +643,7 @@
 
 /* Editorial second-video section */
 .event-overview {
-  background-color: #fff;
-  background-image:
-    linear-gradient(#f1e9e966 1px, transparent 1px), linear-gradient(90deg, #f1e9e966 1px, transparent 1px);
-  background-size: 96px 96px;
+  background: #fff;
 }
 .event-overview-grid {
   display: grid;
@@ -732,9 +729,10 @@
   font-size: 20px;
 }
 .event-meta small {
-  color: #72757b;
-  font-size: 15px;
-  line-height: 1.25;
+  color: #50545b;
+  font-size: clamp(20px, 1.5vw, 24px);
+  font-weight: 500;
+  line-height: 1.4;
 }
 .overview-video-card {
   overflow: hidden;
@@ -1060,7 +1058,7 @@
     font-size: 19px;
   }
   .event-meta small {
-    font-size: 15px;
+    font-size: 20px;
   }
   .overview-stats,
   .overview-stats.south-stats {
