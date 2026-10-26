@@ -25,10 +25,12 @@
     "nodemailer": "^10.0.13",
     "pdfkit": "^0.20.2",
     "qrcode": "^1.5.4",
-    "sanitize-html": "^2.14.0"
+    "sanitize-html": "^2.14.0",
+    "write-excel-file": "^4.1.1"
   },
   "devDependencies": {
     "eslint": "^9.20.1",
+    "exceljs": "^4.4.0",
     "globals": "^15.15.0",
     "supertest": "^7.1.0"
   }

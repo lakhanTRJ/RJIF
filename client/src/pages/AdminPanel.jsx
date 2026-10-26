@@ -10,6 +10,8 @@ import RegistrationPasses from '../components/admin/RegistrationPasses.jsx';
 import RichTextEditor from '../components/admin/RichTextEditor.jsx';
 import TeamAccounts from '../components/admin/TeamAccounts.jsx';
 import ManualAwardForm from '../components/admin/ManualAwardForm.jsx';
+import MagazineSubscribers from '../components/admin/MagazineSubscribers.jsx';
+import ExcelDownload from '../components/admin/ExcelDownload.jsx';
 import { adminRoutes } from '../components/admin/adminRoutes.js';
 import '../admin.css';
 import '../admin-updates.css';
@@ -335,7 +337,8 @@ export default function AdminPanel() {
         if (s.role === 'event_staff' && section !== 'check-in') navigate('/admin/check-in');
         if (s.role === 'article_publisher' && !['articles', 'media'].includes(section))
           navigate('/admin/articles');
-        if (s.role !== 'administrator' && section === 'team-accounts') navigate('/admin/articles');
+        if (s.role !== 'administrator' && ['team-accounts', 'magazine-subscribers'].includes(section))
+          navigate('/admin/articles');
       })
       .catch(() => navigate('/admin/login'));
   }, [navigate, section]);
@@ -408,8 +411,10 @@ export default function AdminPanel() {
 
         {section === 'check-in' && <AdminCheckIn />}
         {section === 'team-accounts' && role === 'administrator' && <TeamAccounts />}
+        {section === 'magazine-subscribers' && role === 'administrator' && <MagazineSubscribers />}
         {section === 'registrations' && (
           <section>
+            {role === 'administrator' && <ExcelDownload kind="registrations" notify={notify} />}
             <p>
               Paid and complimentary orders issue QR passes automatically when attendee details are available.
               Administrators can confirm an offline payment here.
@@ -1546,6 +1551,24 @@ export default function AdminPanel() {
                   setAwards({ ...awards, content: { ...awards.content, partnerLabel } })
                 }
               />
+              <Input
+                label="Awards event year"
+                type="number"
+                value={awards.content.eventYear || 2027}
+                onChange={(eventYear) => setAwards({ ...awards, content: { ...awards.content, eventYear } })}
+              />
+              <DocumentUploadField
+                label="Awards submission guidelines PDF"
+                value={awards.content.guidelinesUrl || ''}
+                onChange={(guidelinesUrl) =>
+                  setAwards({ ...awards, content: { ...awards.content, guidelinesUrl } })
+                }
+              />
+              <small>
+                For a new annual edition, update this year, guidelines, dates, categories and fees. This
+                changes displayed content only; it does not archive registrations or reset subscriber
+                eligibility.
+              </small>
               <ImageUploadField
                 label="Partner logo"
                 value={awards.content.partnerLogoUrl}
@@ -1641,6 +1664,7 @@ export default function AdminPanel() {
               Save awards page
             </button>
             <h2>Recent award registrations</h2>
+            {role === 'administrator' && <ExcelDownload kind="awards" notify={notify} />}
             {role === 'administrator' && (
               <ManualAwardForm
                 awards={awards}

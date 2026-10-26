@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import awardsFallback from '../../data/awards.content.json';
 import reference from '../../data/reference.generated.json';
 import { api } from '../../api.js';
+import SubscriberVerification from '../../components/SubscriberVerification.jsx';
 
 const GUIDELINES_URL =
   'https://retailjewellerindiaforum.com/wp-content/uploads/2026/09/Business-Excellence-Awards-2027-Final-Submission-Guidelines.pdf';
@@ -72,6 +73,8 @@ export default function BusinessExcellencePage({ path, ui }) {
   const [step, setStep] = useState(1);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [subscriber, setSubscriber] = useState({ claim: false, verified: false });
+  const eventYear = Number(content.eventYear) || 2027;
 
   useEffect(() => {
     api('/public/awards')
@@ -89,13 +92,21 @@ export default function BusinessExcellencePage({ path, ui }) {
 
   async function submit(event) {
     event.preventDefault();
+    if (subscriber.claim && !subscriber.verified) {
+      setMessage('Verify your subscription or choose the normal fee before continuing.');
+      return;
+    }
     setBusy(true);
     setMessage('');
     try {
       const fields = Object.fromEntries(new FormData(event.currentTarget));
       const result = await api('/public/award-applications', {
         method: 'POST',
-        body: JSON.stringify({ ...fields, categories: selected }),
+        body: JSON.stringify({
+          ...fields,
+          categories: selected,
+          claim_subscriber_discount: subscriber.claim && subscriber.verified,
+        }),
       });
       window.location.assign(result.checkoutUrl);
     } catch (error) {
@@ -159,6 +170,7 @@ export default function BusinessExcellencePage({ path, ui }) {
         ))}
       </section>
       <section className="award-form" id="categories">
+        <SubscriberVerification onChange={setSubscriber} eventYear={eventYear} />
         <div className="steps">
           <b className={step === 1 ? 'active' : ''}>
             1<small>Apply</small>
@@ -170,9 +182,11 @@ export default function BusinessExcellencePage({ path, ui }) {
         </div>
         {step === 1 ? (
           <>
-            <h2>Select the categories to submit the nominations for the Business Excellence Awards 2027</h2>
+            <h2>
+              Select the categories to submit the nominations for the Business Excellence Awards {eventYear}
+            </h2>
             <p className="award-guidelines-link">
-              <a href={GUIDELINES_URL} target="_blank" rel="noreferrer">
+              <a href={content.guidelinesUrl || GUIDELINES_URL} target="_blank" rel="noreferrer">
                 Submission Guidelines
               </a>
             </p>
@@ -184,7 +198,11 @@ export default function BusinessExcellencePage({ path, ui }) {
                 </label>
               ))}
             </div>
-            <button className="ref-button" disabled={!selected.length} onClick={() => setStep(2)}>
+            <button
+              className="ref-button"
+              disabled={!selected.length || (subscriber.claim && !subscriber.verified)}
+              onClick={() => setStep(2)}
+            >
               Continue to Registration
             </button>
           </>
@@ -202,11 +220,26 @@ export default function BusinessExcellencePage({ path, ui }) {
               </label>
               <label>
                 Mobile Number
-                <input name="mobile" required />
+                <input
+                  name="mobile"
+                  key={`mobile-${subscriber.verified ? subscriber.contact : ''}`}
+                  defaultValue={
+                    subscriber.verified && subscriber.channel === 'whatsapp' ? subscriber.contact : ''
+                  }
+                  required
+                />
               </label>
               <label>
                 Email
-                <input name="email" type="email" required />
+                <input
+                  name="email"
+                  type="email"
+                  key={`email-${subscriber.verified ? subscriber.contact : ''}`}
+                  defaultValue={
+                    subscriber.verified && subscriber.channel === 'email' ? subscriber.contact : ''
+                  }
+                  required
+                />
               </label>
               <label>
                 Coordinator Name

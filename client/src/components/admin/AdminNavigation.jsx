@@ -14,7 +14,10 @@ export default function AdminNavigation({ role, section, onLogout }) {
           ]
         : adminRouteGroups.map((group) => ({
             ...group,
-            items: group.items.filter(([slug]) => slug !== 'team-accounts' || role === 'administrator'),
+            items: group.items.filter(
+              ([slug]) =>
+                !['team-accounts', 'magazine-subscribers'].includes(slug) || role === 'administrator',
+            ),
           }));
 
   return (

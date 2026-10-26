@@ -35,6 +35,7 @@ export const adminRouteGroups = [
       ['footer', 'Footer & social links', 'Contact identity and social profiles'],
       ['media', 'Media library', 'Upload and reuse website images and PDF documents'],
       ['team-accounts', 'Team accounts', 'Manage article publisher logins'],
+      ['magazine-subscribers', 'Magazine subscribers', 'Manage 5-year awards discount eligibility'],
     ],
   },
 ];

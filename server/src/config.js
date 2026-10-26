@@ -43,6 +43,12 @@ export const config = {
     from: process.env.SMTP_FROM || '',
     notificationTo: process.env.FORM_NOTIFICATION_TO || '',
   },
+  doubletick: {
+    apiKey: process.env.DOUBLETICK_API_KEY || '',
+    sender: process.env.DOUBLETICK_SENDER || '',
+    template: process.env.DOUBLETICK_OTP_TEMPLATE || 'code23',
+    language: process.env.DOUBLETICK_OTP_LANGUAGE || 'en',
+  },
   razorpay: {
     keyId: process.env.RAZORPAY_KEY_ID || '',
     keySecret: process.env.RAZORPAY_KEY_SECRET || '',

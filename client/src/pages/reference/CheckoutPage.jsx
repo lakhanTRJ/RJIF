@@ -72,6 +72,24 @@ function Checkout({ path }) {
   const [pass, setPass] = useState(checkoutPasses[selected] || null);
   const [loading, setLoading] = useState(!checkoutPasses[selected]);
   const [quantity, setQuantity] = useState(1);
+  const [awardQuote, setAwardQuote] = useState(null),
+    [quoteError, setQuoteError] = useState('');
+  useEffect(() => {
+    let active = true;
+    setAwardQuote(null);
+    setQuoteError('');
+    if (!awardApplication) return undefined;
+    api(`/public/award-applications/${encodeURIComponent(awardApplication)}/quote`)
+      .then((data) => {
+        if (active) setAwardQuote(data);
+      })
+      .catch((e) => {
+        if (active) setQuoteError(e.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [awardApplication]);
   const [collectAttendees, setCollectAttendees] = useState(false);
   const [submitting, setSubmitting] = useState(false),
     [result, setResult] = useState(null),
@@ -95,8 +113,11 @@ function Checkout({ path }) {
   const isAwardRegistration = pass?.kind === 'award_fee' || selected === 'awards-registration';
   const attendeeCount = members * quantity;
   const unitPrice = Number(pass?.sale_price_paise || 0);
-  const subtotal = unitPrice * quantity;
-  const taxAmount = Math.round((subtotal * (Number(pass?.tax_rate) || 0)) / 100);
+  const subtotal = isAwardRegistration && awardQuote ? awardQuote.subtotal : unitPrice * quantity;
+  const taxAmount =
+    isAwardRegistration && awardQuote
+      ? awardQuote.tax
+      : Math.round((subtotal * (Number(pass?.tax_rate) || 0)) / 100);
   const grandTotal = subtotal + taxAmount;
   const changeQuantity = (next) => setQuantity(Math.min(20, Math.max(1, next)));
   async function openPayment(registration) {
@@ -143,6 +164,10 @@ function Checkout({ path }) {
   }
   async function submit(event) {
     event.preventDefault();
+    if (isAwardRegistration && (!awardQuote || quoteError)) {
+      setError(quoteError || 'Wait for the awards fee to be verified.');
+      return;
+    }
     setSubmitting(true);
     setError('');
     const data = new FormData(event.currentTarget);
@@ -273,8 +298,23 @@ function Checkout({ path }) {
                   <span>
                     {isAwardRegistration ? 'Registration fee' : `${money(unitPrice)} × ${quantity}`}
                   </span>
-                  <b>{money(subtotal)}</b>
+                  <b>{money(isAwardRegistration && awardQuote ? awardQuote.base : subtotal)}</b>
                 </div>
+                {isAwardRegistration && awardQuote?.discountPercent > 0 && (
+                  <>
+                    <div>
+                      <span>Verified 5-year subscriber discount (50%)</span>
+                      <b>−{money(awardQuote.discount)}</b>
+                    </div>
+                    <div>
+                      <span>Taxable registration fee</span>
+                      <b>{money(subtotal)}</b>
+                    </div>
+                  </>
+                )}
+                {isAwardRegistration && !awardQuote && (
+                  <p role="status">{quoteError || 'Checking registration fee…'}</p>
+                )}
                 {taxAmount > 0 && (
                   <div>
                     <span>GST ({pass.tax_rate}%)</span>
@@ -295,7 +335,7 @@ function Checkout({ path }) {
                   <h2>Billing details</h2>
                 </div>
               </div>
-              {error && <p className="error">{error}</p>}
+              {(error || quoteError) && <p className="error">{error || quoteError}</p>}
               <div className="checkout-form-grid">
                 <label>
                   Full name
@@ -360,7 +400,10 @@ function Checkout({ path }) {
                 <input name="consent" type="checkbox" required />
                 <span>I agree to the terms, privacy, refund and cancellation policies.</span>
               </label>
-              <button className="ref-button checkout-submit" disabled={submitting}>
+              <button
+                className="ref-button checkout-submit"
+                disabled={submitting || (isAwardRegistration && (!awardQuote || Boolean(quoteError)))}
+              >
                 {submitting
                   ? 'Submitting…'
                   : subtotal === 0

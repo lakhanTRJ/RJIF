@@ -5,6 +5,9 @@ import { cleanArticleHtml } from '../articleContent.js';
 import crypto from 'node:crypto';
 import { pool, query } from '../db.js';
 import { config } from '../config.js';
+import { createSubscriberVerificationRouter } from '../subscriberVerification.js';
+import { subscriberMatches, subscriberDiscount } from '../subscriberRules.js';
+import { awardPricing } from '../../../client/src/awardPricing.js';
 import {
   getPassByToken,
   issuePassesForOrder,
@@ -13,11 +16,16 @@ import {
   passToken,
   qrSvg,
   queuePassEmail,
+  sendGenericEmail,
   sha256,
   verifyOrderToken,
 } from '../passService.js';
 
 export const publicRouter = Router();
+publicRouter.use(
+  '/subscriber-verification',
+  createSubscriberVerificationRouter({ pool, query, config, sendGenericEmail }),
+);
 
 export async function getPublishedPage(path) {
   const pages = await query(
@@ -310,10 +318,11 @@ publicRouter.post('/checkout', checkoutLimiter, async (req, res, next) => {
       }
     }
     let awardApplicationId = null;
+    let discountPercent = 0;
     const awardPublicId = clean(req.body.award_application_id, 36);
     if (product.kind === 'award_fee') {
       const [[application]] = await connection.execute(
-        "SELECT id FROM award_applications WHERE public_id=? AND status='payment_pending' FOR UPDATE",
+        "SELECT * FROM award_applications WHERE public_id=? AND status='payment_pending' FOR UPDATE",
         [awardPublicId],
       );
       if (!application) {
@@ -321,13 +330,18 @@ publicRouter.post('/checkout', checkoutLimiter, async (req, res, next) => {
         return res.status(422).json({ error: 'A valid award application is required' });
       }
       awardApplicationId = application.id;
+      discountPercent = await subscriberDiscount(connection, application, config.sessionSecret);
     }
-    const subtotal = Number(product.sale_price_paise) * quantity,
+    const pricing =
+      product.kind === 'award_fee'
+        ? awardPricing(Number(product.sale_price_paise), Number(product.tax_rate), discountPercent)
+        : null;
+    const subtotal = pricing ? pricing.subtotal : Number(product.sale_price_paise) * quantity,
       tax = Math.round((subtotal * Number(product.tax_rate)) / 100),
       total = subtotal + tax,
       publicId = crypto.randomUUID();
     const [result] = await connection.execute(
-      `INSERT INTO commerce_orders (public_id,idempotency_key,product_id,award_application_id,quantity,subtotal_paise,tax_paise,total_paise,currency,customer_name,company,email,phone,gstin,billing_address,status,consented_at,policy_version,paid_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),?,?)`,
+      `INSERT INTO commerce_orders (public_id,idempotency_key,product_id,award_application_id,quantity,subtotal_paise,tax_paise,total_paise,currency,customer_name,company,email,phone,gstin,billing_address,status,consented_at,policy_version,paid_at,discount_percent,discount_paise,discount_reason) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),?,?,?,?,?)`,
       [
         publicId,
         idempotencyHash,
@@ -347,6 +361,9 @@ publicRouter.post('/checkout', checkoutLimiter, async (req, res, next) => {
         total === 0 ? 'paid' : 'pending',
         clean(req.body.policy_version, 40) || '2026-10-06',
         total === 0 ? new Date() : null,
+        discountPercent,
+        pricing?.discount || 0,
+        discountPercent ? 'Verified active 5-year magazine subscriber' : null,
       ],
     );
     if (product.kind !== 'award_fee') {
@@ -750,9 +767,34 @@ publicRouter.post('/award-applications', awardLimiter, async (req, res, next) =>
       return res.status(422).json({ error: 'Complete all required contact fields' });
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
       return res.status(422).json({ error: 'Enter a valid email address' });
+    let proof = null;
+    if (req.body.claim_subscriber_discount === true) {
+      proof = req.session.subscriberProof;
+      if (!proof || proof.expiresAt < Date.now())
+        return res.status(422).json({ error: 'Verify your subscriber contact again to claim the discount.' });
+      const subscriber = (
+        await query(
+          "SELECT *,DATE_FORMAT(valid_until,'%Y-%m-%d') AS valid_until FROM magazine_subscribers WHERE id=?",
+          [proof.subscriberId],
+        )
+      )[0];
+      if (
+        !subscriberMatches(
+          subscriber,
+          proof.channel,
+          proof.contactHash,
+          { email, mobile },
+          config.sessionSecret,
+        )
+      )
+        return res.status(422).json({
+          error:
+            'Use the same verified registered email or mobile in your contact information, or verify again.',
+        });
+    }
     const publicId = crypto.randomUUID();
     await query(
-      'INSERT INTO award_applications (public_id,categories,full_name,company,mobile,email,coordinator_name,coordinator_number,gstin,city,state,billing_address) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO award_applications (public_id,categories,full_name,company,mobile,email,coordinator_name,coordinator_number,gstin,city,state,billing_address,subscriber_id,subscriber_channel,subscriber_contact_hash,subscriber_verified_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
       [
         publicId,
         JSON.stringify(categories),
@@ -766,8 +808,13 @@ publicRouter.post('/award-applications', awardLimiter, async (req, res, next) =>
         city,
         state,
         text('billing_address', 2000) || null,
+        proof?.subscriberId || null,
+        proof?.channel || null,
+        proof?.contactHash || null,
+        proof ? new Date(proof.verifiedAt) : null,
       ],
     );
+    delete req.session.subscriberProof;
     res.status(201).json({
       applicationId: publicId,
       status: 'payment_pending',
@@ -775,6 +822,38 @@ publicRouter.post('/award-applications', awardLimiter, async (req, res, next) =>
     });
   } catch (error) {
     next(error);
+  }
+});
+
+publicRouter.get('/award-applications/:id/quote', async (req, res, next) => {
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [[application]] = await connection.execute(
+      "SELECT * FROM award_applications WHERE public_id=? AND status='payment_pending' FOR UPDATE",
+      [req.params.id],
+    );
+    if (!application) {
+      await connection.rollback();
+      return res.status(404).json({ error: 'Unpaid application not found.' });
+    }
+    const [[product]] = await connection.execute(
+      "SELECT * FROM commerce_products WHERE code='awards-registration' AND is_active=1",
+    );
+    if (!product) {
+      await connection.rollback();
+      return res.status(404).json({ error: 'Award registration is unavailable.' });
+    }
+    const discount = await subscriberDiscount(connection, application, config.sessionSecret);
+    const pricing = awardPricing(Number(product.sale_price_paise), Number(product.tax_rate), discount);
+    await connection.commit();
+    res.set('Cache-Control', 'no-store').json({ ...pricing, taxRate: Number(product.tax_rate) });
+  } catch (error) {
+    await connection.rollback();
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    next(error);
+  } finally {
+    connection.release();
   }
 });
 

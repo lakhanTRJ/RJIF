@@ -10,6 +10,8 @@ import { pool, query } from '../db.js';
 import { validateManualRegistration } from '../manualRegistration.js';
 import { validateManualAward, awardConfirmation } from '../manualAwards.js';
 import { regenerateComplimentaryLink } from '../complimentaryLinks.js';
+import { validateSubscriber } from '../subscriberRules.js';
+import { registrationWorkbook } from '../registrationExports.js';
 import {
   issueCsrf,
   requireAdmin,
@@ -540,6 +542,13 @@ adminRouter.put('/awards', requireAdmin, requireCsrf, async (req, res, next) => 
   try {
     const content = req.body?.content;
     if (
+      content?.eventYear !== undefined &&
+      (!Number.isInteger(Number(content.eventYear)) ||
+        Number(content.eventYear) < 2027 ||
+        Number(content.eventYear) > 2100)
+    )
+      return res.status(422).json({ error: 'Enter a valid awards event year between 2027 and 2100.' });
+    if (
       !content ||
       typeof content !== 'object' ||
       !Array.isArray(content.accordions) ||
@@ -1022,6 +1031,40 @@ adminRouter.post('/registrations/manual', requireAdministrator, requireCsrf, asy
   }
 });
 
+adminRouter.get('/exports/:kind.xlsx', requireAdministrator, async (req, res, next) => {
+  try {
+    const kind = req.params.kind;
+    if (!['registrations', 'awards'].includes(kind))
+      return res.status(404).json({ error: 'Export not found' });
+    const orders = await query(
+      `SELECT o.*,p.name AS product_name,p.forum,aa.public_id AS application_reference FROM commerce_orders o JOIN commerce_products p ON p.id=o.product_id LEFT JOIN award_applications aa ON aa.id=o.award_application_id WHERE p.kind=? ORDER BY o.id DESC`,
+      [kind === 'awards' ? 'award_fee' : 'delegate_pass'],
+    );
+    const data = { orders };
+    if (kind === 'registrations')
+      data.attendees = await query(
+        "SELECT o.public_id AS order_reference,p.forum,p.name AS product_name,oa.attendee_number,oa.full_name,oa.email,oa.phone,o.status AS order_status,dp.status AS pass_status,dp.checked_in_at FROM order_attendees oa JOIN commerce_orders o ON o.id=oa.order_id JOIN commerce_products p ON p.id=o.product_id LEFT JOIN digital_passes dp ON dp.attendee_id=oa.id WHERE p.kind='delegate_pass' ORDER BY o.id DESC,oa.attendee_number",
+      );
+    else
+      data.applications = await query(
+        "SELECT aa.public_id AS application_reference,aa.created_at AS application_created,aa.full_name,aa.company,aa.mobile,aa.email,aa.coordinator_name,aa.coordinator_number,aa.city,aa.state,aa.gstin,aa.billing_address,aa.categories,aa.status AS application_status,aa.subscriber_verified_at,o.public_id,o.subtotal_paise,o.discount_percent,o.discount_paise,o.discount_reason,o.tax_paise,o.total_paise,o.status,o.payment_method,o.payment_reference,o.paid_at,o.provider_order_id,o.provider_payment_id,o.payment_notes FROM award_applications aa LEFT JOIN commerce_orders o ON o.id=(SELECT co.id FROM commerce_orders co WHERE co.award_application_id=aa.id ORDER BY (co.status='paid') DESC,co.id DESC LIMIT 1) ORDER BY aa.id DESC",
+      );
+    const buffer = await registrationWorkbook(kind, data);
+    await audit(req, 'export_xlsx', kind, null, {
+      order_count: orders.length,
+      detail_count: (data.attendees || data.applications).length,
+    });
+    res.set({
+      'Cache-Control': 'no-store',
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="${kind}-${new Date().toISOString().slice(0, 10)}.xlsx"`,
+    });
+    res.send(Buffer.from(buffer));
+  } catch (error) {
+    next(error);
+  }
+});
+
 adminRouter.get('/registrations', requireAdmin, async (req, res, next) => {
   try {
     const rows = await query(
@@ -1111,6 +1154,57 @@ adminRouter.post(
     }
   },
 );
+adminRouter.get('/magazine-subscribers', requireAdministrator, async (req, res, next) => {
+  try {
+    const term = String(req.query.search || '')
+      .trim()
+      .slice(0, 200);
+    res.json(
+      await query(
+        "SELECT id,full_name,company,mobile,email,is_active,DATE_FORMAT(valid_until,'%Y-%m-%d') AS valid_until FROM magazine_subscribers WHERE full_name LIKE ? OR company LIKE ? OR mobile LIKE ? OR email LIKE ? ORDER BY id DESC LIMIT 500",
+        Array(4).fill(`%${term}%`),
+      ),
+    );
+  } catch (error) {
+    next(error);
+  }
+});
+adminRouter.post('/magazine-subscribers', requireAdministrator, requireCsrf, async (req, res, next) => {
+  try {
+    const row = validateSubscriber(req.body);
+    const result = await query(
+      'INSERT INTO magazine_subscribers (full_name,company,mobile,email,is_active,valid_until) VALUES (?,?,?,?,?,?)',
+      [row.full_name, row.company, row.mobile, row.email, row.is_active, row.valid_until],
+    );
+    await audit(req, 'create', 'magazine_subscriber', result.insertId);
+    res.status(201).json({ ok: true });
+  } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY')
+      return res
+        .status(409)
+        .json({ error: 'This mobile or email already belongs to a subscriber. Edit that record instead.' });
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    next(error);
+  }
+});
+adminRouter.put('/magazine-subscribers/:id', requireAdministrator, requireCsrf, async (req, res, next) => {
+  try {
+    const row = validateSubscriber(req.body);
+    const result = await query(
+      'UPDATE magazine_subscribers SET full_name=?,company=?,mobile=?,email=?,is_active=?,valid_until=? WHERE id=?',
+      [row.full_name, row.company, row.mobile, row.email, row.is_active, row.valid_until, req.params.id],
+    );
+    if (!result.affectedRows) return res.status(404).json({ error: 'Subscriber not found.' });
+    await audit(req, row.is_active ? 'update' : 'disable', 'magazine_subscriber', req.params.id);
+    res.json({ ok: true });
+  } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY')
+      return res.status(409).json({ error: 'This mobile or email belongs to another subscriber.' });
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    next(error);
+  }
+});
+
 adminRouter.get('/team-accounts', requireAdministrator, async (req, res, next) => {
   try {
     res.json(
