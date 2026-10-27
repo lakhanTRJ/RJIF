@@ -13,6 +13,7 @@ import { regenerateComplimentaryLink } from '../complimentaryLinks.js';
 import { validateSubscriber } from '../subscriberRules.js';
 import { saveSubscriber, currentAwardYear, reserveSubscriberBenefit } from '../subscriberCompanies.js';
 import { readSubscriberImport } from '../subscriberImport.js';
+import { archiveUnpaidDuplicate, assertGatewayUnpaid } from '../unpaidDuplicates.js';
 import { registrationWorkbook } from '../registrationExports.js';
 import {
   issueCsrf,
@@ -354,7 +355,7 @@ adminRouter.get('/awards', requireAdmin, async (req, res, next) => {
       content: {},
     };
     const applications = await query(
-      "SELECT aa.*,o.payment_method,o.payment_reference,o.total_paise,o.discount_percent,o.discount_paise,o.discount_reason FROM award_applications aa LEFT JOIN commerce_orders o ON o.id=(SELECT MAX(co.id) FROM commerce_orders co WHERE co.award_application_id=aa.id AND co.status='paid') ORDER BY aa.id DESC LIMIT 250",
+      "SELECT aa.*,o.payment_method,o.payment_reference,o.total_paise,o.discount_percent,o.discount_paise,o.discount_reason FROM award_applications aa LEFT JOIN commerce_orders o ON o.id=(SELECT MAX(co.id) FROM commerce_orders co WHERE co.award_application_id=aa.id AND co.status='paid') WHERE aa.archived_at IS NULL ORDER BY aa.id DESC LIMIT 250",
     );
     res.json({
       content: typeof settings.content === 'string' ? JSON.parse(settings.content) : settings.content,
@@ -408,7 +409,7 @@ adminRouter.post('/awards/manual', requireAdministrator, requireCsrf, async (req
         'SELECT * FROM award_applications WHERE public_id=? FOR UPDATE',
         [String(req.body.application_public_id)],
       );
-      if (!row || !['pending', 'payment_pending'].includes(row.status))
+      if (!row || row.archived_at || !['pending', 'payment_pending'].includes(row.status))
         throw Object.assign(new Error('Choose an unpaid, non-cancelled award application.'), { status: 409 });
       const [[active]] = await connection.execute(
         "SELECT id FROM commerce_orders WHERE award_application_id=? AND (status='paid' OR provider_order_id IS NOT NULL) LIMIT 1 FOR UPDATE",
@@ -1055,7 +1056,7 @@ adminRouter.get('/exports/:kind.xlsx', requireAdministrator, async (req, res, ne
       );
     else
       data.applications = await query(
-        "SELECT aa.public_id AS application_reference,aa.event_year,aa.created_at AS application_created,aa.full_name,aa.company,aa.mobile,aa.email,aa.coordinator_name,aa.coordinator_number,aa.city,aa.state,aa.gstin,aa.billing_address,aa.categories,aa.status AS application_status,aa.subscriber_verified_at,o.public_id,o.subtotal_paise,o.discount_percent,o.discount_paise,o.discount_reason,o.tax_paise,o.total_paise,o.status,o.payment_method,o.payment_reference,o.paid_at,o.provider_order_id,o.provider_payment_id,o.payment_notes FROM award_applications aa LEFT JOIN commerce_orders o ON o.id=(SELECT co.id FROM commerce_orders co WHERE co.award_application_id=aa.id ORDER BY (co.status='paid') DESC,co.id DESC LIMIT 1) ORDER BY aa.id DESC",
+        "SELECT aa.public_id AS application_reference,aa.event_year,aa.archived_at AS application_archived_at,aa.created_at AS application_created,aa.full_name,aa.company,aa.mobile,aa.email,aa.coordinator_name,aa.coordinator_number,aa.city,aa.state,aa.gstin,aa.billing_address,aa.categories,aa.status AS application_status,aa.subscriber_verified_at,o.public_id,o.archived_at,o.subtotal_paise,o.discount_percent,o.discount_paise,o.discount_reason,o.tax_paise,o.total_paise,o.status,o.payment_method,o.payment_reference,o.paid_at,o.provider_order_id,o.provider_payment_id,o.payment_notes FROM award_applications aa LEFT JOIN commerce_orders o ON o.id=(SELECT co.id FROM commerce_orders co WHERE co.award_application_id=aa.id ORDER BY (co.status='paid') DESC,co.id DESC LIMIT 1) ORDER BY aa.id DESC",
       );
     const buffer = await registrationWorkbook(kind, data);
     await audit(req, 'export_xlsx', kind, null, {
@@ -1076,13 +1077,40 @@ adminRouter.get('/exports/:kind.xlsx', requireAdministrator, async (req, res, ne
 adminRouter.get('/registrations', requireAdmin, async (req, res, next) => {
   try {
     const rows = await query(
-      `SELECT o.id,o.public_id,o.customer_name,o.company,o.email,o.phone,o.total_paise,o.status,o.created_at,o.payment_method,o.payment_reference,o.payment_notes,o.paid_at,p.name AS product_name,p.forum,COUNT(DISTINCT oa.id) AS attendee_count,COUNT(DISTINCT dp.id) AS pass_count FROM commerce_orders o JOIN commerce_products p ON p.id=o.product_id LEFT JOIN order_attendees oa ON oa.order_id=o.id LEFT JOIN digital_passes dp ON dp.order_id=o.id GROUP BY o.id ORDER BY o.created_at DESC LIMIT 200`,
+      `SELECT o.id,o.public_id,o.product_id,o.customer_name,o.company,o.email,o.phone,o.total_paise,o.status,o.created_at,o.payment_method,o.payment_reference,o.payment_notes,o.paid_at,p.name AS product_name,p.forum,COUNT(DISTINCT oa.id) AS attendee_count,COUNT(DISTINCT dp.id) AS pass_count FROM commerce_orders o JOIN commerce_products p ON p.id=o.product_id LEFT JOIN order_attendees oa ON oa.order_id=o.id LEFT JOIN digital_passes dp ON dp.order_id=o.id WHERE o.archived_at IS NULL GROUP BY o.id ORDER BY o.created_at DESC LIMIT 200`,
     );
     res.json(rows);
   } catch (error) {
     next(error);
   }
 });
+adminRouter.delete(
+  '/:kind/:id/unpaid-duplicate',
+  requireAdministrator,
+  requireCsrf,
+  async (req, res, next) => {
+    const db = await pool.getConnection();
+    try {
+      await db.beginTransaction();
+      await archiveUnpaidDuplicate(
+        db,
+        req.params.kind,
+        Number(req.params.id),
+        Number(req.body.paid_replacement_id),
+        req.session.adminId,
+        (order) => assertGatewayUnpaid(order, config.razorpay),
+      );
+      await db.commit();
+      res.json({ ok: true });
+    } catch (error) {
+      await db.rollback();
+      if (error.status) return res.status(error.status).json({ error: error.message });
+      next(error);
+    } finally {
+      db.release();
+    }
+  },
+);
 adminRouter.get('/registrations/:id/passes', requireAdmin, async (req, res, next) => {
   try {
     res.set('Cache-Control', 'no-store');
@@ -1124,11 +1152,18 @@ adminRouter.post(
   async (req, res, next) => {
     try {
       const order = (
-        await query('SELECT id,status,award_application_id FROM commerce_orders WHERE id=? LIMIT 1', [
-          req.params.id,
-        ])
+        await query(
+          'SELECT id,status,archived_at,award_application_id FROM commerce_orders WHERE id=? LIMIT 1',
+          [req.params.id],
+        )
       )[0];
       if (!order) return res.status(404).json({ error: 'Registration not found' });
+      if (order.archived_at)
+        return res
+          .status(409)
+          .json({
+            error: 'This unpaid duplicate was archived. Reconcile any actual payment before restoring it.',
+          });
       if (order.award_application_id)
         return res.status(422).json({
           error:

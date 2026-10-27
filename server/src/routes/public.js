@@ -203,11 +203,13 @@ async function finalizePaidOrder(order, payment) {
   if (payment.status !== 'captured')
     throw Object.assign(new Error('Payment has not been captured yet'), { status: 409 });
   await query(
-    "UPDATE commerce_orders SET status='paid',provider_payment_id=?,paid_at=COALESCE(paid_at,NOW()) WHERE id=?",
+    "UPDATE commerce_orders SET status='paid',provider_payment_id=?,paid_at=COALESCE(paid_at,NOW()),archived_at=NULL WHERE id=?",
     [payment.id, order.id],
   );
   if (order.award_application_id) {
-    await query("UPDATE award_applications SET status='paid' WHERE id=?", [order.award_application_id]);
+    await query("UPDATE award_applications SET status='paid',archived_at=NULL WHERE id=?", [
+      order.award_application_id,
+    ]);
     await queueAwardConfirmationEmail(order);
   } else {
     await issuePassesForOrder(order.id);
@@ -270,6 +272,10 @@ publicRouter.post('/checkout', checkoutLimiter, async (req, res, next) => {
       )
     )[0];
     if (existing) {
+      if (existing.archived_at)
+        return res
+          .status(410)
+          .json({ error: 'This unpaid duplicate has been removed. Use your paid registration.' });
       const gateway = existing.provider_order_id ? { id: existing.provider_order_id } : null;
       return res.json(checkoutPayload(existing, { name: existing.name }, gateway));
     }
@@ -323,7 +329,7 @@ publicRouter.post('/checkout', checkoutLimiter, async (req, res, next) => {
     const awardPublicId = clean(req.body.award_application_id, 36);
     if (product.kind === 'award_fee') {
       const [[application]] = await connection.execute(
-        "SELECT * FROM award_applications WHERE public_id=? AND status='payment_pending' FOR UPDATE",
+        "SELECT * FROM award_applications WHERE public_id=? AND status='payment_pending' AND archived_at IS NULL FOR UPDATE",
         [awardPublicId],
       );
       if (!application) {
@@ -534,11 +540,15 @@ publicRouter.get('/orders/:token', async (req, res, next) => {
     if (!publicId) return res.status(404).json({ error: 'Registration not found' });
     const order = (
       await query(
-        `SELECT o.id,o.public_id,o.quantity,o.total_paise,o.currency,o.status,o.customer_name,o.company,o.email,p.code AS product_code,p.name AS product_name,p.kind AS product_kind,p.member_count,p.forum,aa.categories AS award_categories FROM commerce_orders o JOIN commerce_products p ON p.id=o.product_id LEFT JOIN award_applications aa ON aa.id=o.award_application_id WHERE o.public_id=? LIMIT 1`,
+        `SELECT o.id,o.public_id,o.archived_at,o.quantity,o.total_paise,o.currency,o.status,o.customer_name,o.company,o.email,p.code AS product_code,p.name AS product_name,p.kind AS product_kind,p.member_count,p.forum,aa.categories AS award_categories FROM commerce_orders o JOIN commerce_products p ON p.id=o.product_id LEFT JOIN award_applications aa ON aa.id=o.award_application_id WHERE o.public_id=? LIMIT 1`,
         [publicId],
       )
     )[0];
     if (!order) return res.status(404).json({ error: 'Registration not found' });
+    if (order.archived_at)
+      return res
+        .status(410)
+        .json({ error: 'This unpaid duplicate has been removed. Use your paid registration.' });
     const attendees = await query(
       'SELECT id,attendee_number,full_name,email,phone FROM order_attendees WHERE order_id=? ORDER BY attendee_number',
       [order.id],
@@ -574,6 +584,10 @@ publicRouter.post('/orders/:token/payment', checkoutLimiter, async (req, res, ne
     )[0];
     if (!order) return res.status(404).json({ error: 'Registration not found' });
     if (order.status === 'paid') return res.status(409).json({ error: 'This registration is already paid' });
+    if (order.archived_at)
+      return res
+        .status(410)
+        .json({ error: 'This unpaid duplicate has been removed. Use your paid registration.' });
     if (Number(order.total_paise) <= 0)
       return res.status(409).json({ error: 'This registration does not require payment' });
     let gateway = order.provider_order_id ? { id: order.provider_order_id } : null;
@@ -724,7 +738,7 @@ publicRouter.get('/account-access/:token', accountLimiter, async (req, res, next
     )[0];
     if (!record) return res.status(404).json({ error: 'This access link is invalid or has expired' });
     const orders = await query(
-      `SELECT o.public_id,o.status,o.created_at,o.quantity,o.total_paise,o.currency,p.name AS product_name FROM commerce_orders o JOIN commerce_products p ON p.id=o.product_id WHERE o.email=? ORDER BY o.id DESC LIMIT 100`,
+      `SELECT o.public_id,o.status,o.created_at,o.quantity,o.total_paise,o.currency,p.name AS product_name FROM commerce_orders o JOIN commerce_products p ON p.id=o.product_id WHERE o.email=? AND o.archived_at IS NULL ORDER BY o.id DESC LIMIT 100`,
       [record.email],
     );
     res.json({
@@ -831,17 +845,22 @@ publicRouter.post('/award-applications', awardLimiter, async (req, res, next) =>
       );
       await db.execute('SELECT id FROM subscriber_companies WHERE id=? FOR UPDATE', [subscriber.company_id]);
       const [[existing]] = await db.execute(
-        'SELECT a.public_id,a.status FROM subscriber_award_benefits b JOIN award_applications a ON a.id=b.application_id WHERE b.company_id=? AND b.event_year=?',
+        'SELECT a.public_id,a.status,a.archived_at FROM subscriber_award_benefits b JOIN award_applications a ON a.id=b.application_id WHERE b.company_id=? AND b.event_year=?',
         [subscriber.company_id, eventYear],
       );
       if (existing) {
         await db.rollback();
-        if (existing.status !== 'payment_pending')
+        if (existing.archived_at)
           return res
             .status(409)
             .json({
-              error: `Your company has already used its subscriber registration for ${eventYear}. Regular-price registration remains available.`,
+              error:
+                'Your previous discounted application was archived as a duplicate. Contact the organiser. The yearly allowance is not automatically reset.',
             });
+        if (existing.status !== 'payment_pending')
+          return res.status(409).json({
+            error: `Your company has already used its subscriber registration for ${eventYear}. Regular-price registration remains available.`,
+          });
         return res.json({
           applicationId: existing.public_id,
           status: existing.status,
@@ -893,7 +912,7 @@ publicRouter.get('/award-applications/:id/quote', async (req, res, next) => {
   try {
     await connection.beginTransaction();
     const [[application]] = await connection.execute(
-      "SELECT * FROM award_applications WHERE public_id=? AND status='payment_pending' FOR UPDATE",
+      "SELECT * FROM award_applications WHERE public_id=? AND status='payment_pending' AND archived_at IS NULL FOR UPDATE",
       [req.params.id],
     );
     if (!application) {

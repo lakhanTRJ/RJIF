@@ -12,6 +12,7 @@ import TeamAccounts from '../components/admin/TeamAccounts.jsx';
 import ManualAwardForm from '../components/admin/ManualAwardForm.jsx';
 import MagazineSubscribers from '../components/admin/MagazineSubscribers.jsx';
 import ExcelDownload from '../components/admin/ExcelDownload.jsx';
+import DeleteUnpaidDuplicate from '../components/admin/DeleteUnpaidDuplicate.jsx';
 import { adminRoutes } from '../components/admin/adminRoutes.js';
 import '../admin.css';
 import '../admin-updates.css';
@@ -485,6 +486,15 @@ export default function AdminPanel() {
                       </td>
                       <td>
                         <RegistrationPasses orderId={row.id} notify={notify} />
+                        {role === 'administrator' && row.status !== 'paid' && (
+                          <DeleteUnpaidDuplicate
+                            kind="registrations"
+                            row={row}
+                            paidRows={registrations}
+                            notify={notify}
+                            onDeleted={async () => setRegistrations(await api('/admin/registrations'))}
+                          />
+                        )}
                         {row.status !== 'paid' ||
                         (Number(row.pass_count) === 0 && Number(row.attendee_count) > 0) ? (
                           <button
@@ -1687,6 +1697,7 @@ export default function AdminPanel() {
                       <th>Company</th>
                       <th>Categories</th>
                       <th>Status</th>
+                      <th>Duplicate cleanup</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1719,6 +1730,17 @@ export default function AdminPanel() {
                               {(Number(row.discount_paise) / 100).toFixed(2)})<br />
                               {row.discount_reason}
                             </small>
+                          )}
+                        </td>
+                        <td>
+                          {role === 'administrator' && row.status !== 'paid' && (
+                            <DeleteUnpaidDuplicate
+                              kind="awards"
+                              row={row}
+                              paidRows={awards.applications || []}
+                              notify={notify}
+                              onDeleted={async () => setAwards(await api('/admin/awards'))}
+                            />
                           )}
                         </td>
                       </tr>

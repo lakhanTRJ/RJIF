@@ -48,6 +48,8 @@ test('publishers cannot read customer data, mutate website settings or manage ac
     'registrations/1/passes',
     'registrations/manual',
     'registrations/1/send-passes',
+    'registrations/1/unpaid-duplicate',
+    'awards/1/unpaid-duplicate',
     'awards',
     'awards/manual',
     'felicitation',

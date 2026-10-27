@@ -46,6 +46,7 @@ const common = [
   ['GST (INR)', 'tax_paise', 18, money],
   ['Total (INR)', 'total_paise', 21, money],
   ['Order status', 'status', 20],
+  ['Archived duplicate (IST)', 'archived_at', 26, istDate],
   ['Payment method', 'payment_method', 20, (_v, row) => paymentMethod(row)],
   ['UTR / receipt reference', 'payment_reference', 28],
   ['Paid (IST)', 'paid_at', 23, istDate],
@@ -140,6 +141,7 @@ export async function registrationWorkbook(kind, data) {
         ['Billing address', 'billing_address', 45],
         ['Selected categories', 'categories', 65, categoryText],
         ['Application status', 'application_status', 22],
+        ['Application archived duplicate (IST)', 'application_archived_at', 30, istDate],
         ['Subscriber verified (IST)', 'subscriber_verified_at', 26, istDate],
         ...common.filter(
           ([, key]) =>
