@@ -1098,7 +1098,17 @@ adminRouter.delete(
         Number(req.params.id),
         Number(req.body.paid_replacement_id),
         req.session.adminId,
-        (order) => assertGatewayUnpaid(order, config.razorpay),
+        (order) =>
+          assertGatewayUnpaid(order, config.razorpay, fetch, (diagnostic) =>
+            console.error(
+              JSON.stringify({
+                level: 'warn',
+                type: 'duplicate_gateway_check',
+                localOrderId: order.id,
+                ...diagnostic,
+              }),
+            ),
+          ),
       );
       await db.commit();
       res.json({ ok: true });
@@ -1159,11 +1169,9 @@ adminRouter.post(
       )[0];
       if (!order) return res.status(404).json({ error: 'Registration not found' });
       if (order.archived_at)
-        return res
-          .status(409)
-          .json({
-            error: 'This unpaid duplicate was archived. Reconcile any actual payment before restoring it.',
-          });
+        return res.status(409).json({
+          error: 'This unpaid duplicate was archived. Reconcile any actual payment before restoring it.',
+        });
       if (order.award_application_id)
         return res.status(422).json({
           error:

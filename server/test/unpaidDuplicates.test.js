@@ -115,3 +115,37 @@ test('Razorpay reconciliation is read-only and fails closed for paid, authorised
     { status: 503 },
   );
 });
+
+test('gateway diagnostics identify failure stage without logging secrets or provider responses', async () => {
+  const logs = [];
+  const settings = { keyId: 'private_key', keySecret: 'private_secret' };
+  const report = (entry) => logs.push(entry);
+  await assert.rejects(
+    () =>
+      assertGatewayUnpaid(
+        { provider_order_id: 'order_private' },
+        settings,
+        async () => ({ ok: false, status: 401, json: async () => ({ secret: 'private_secret' }) }),
+        report,
+      ),
+    { status: 503 },
+  );
+  assert.deepEqual(logs[0], { reason: 'http_error', endpoint: 'order', httpStatus: 401 });
+  await assert.rejects(
+    () =>
+      assertGatewayUnpaid(
+        { provider_order_id: 'order_private' },
+        settings,
+        async () => {
+          throw Object.assign(new Error('https://private_secret@example.com'), {
+            cause: { code: 'UND_ERR_CONNECT_TIMEOUT', message: 'private_secret' },
+          });
+        },
+        report,
+      ),
+    { status: 503 },
+  );
+  assert.equal(logs[1].causeCode, 'UND_ERR_CONNECT_TIMEOUT');
+  assert.equal(JSON.stringify(logs).includes('private_secret'), false);
+  assert.equal(JSON.stringify(logs).includes('order_private'), false);
+});
