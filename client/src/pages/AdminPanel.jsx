@@ -1566,8 +1566,9 @@ export default function AdminPanel() {
               />
               <small>
                 For a new annual edition, update this year, guidelines, dates, categories and fees. This
-                changes displayed content only; it does not archive registrations or reset subscriber
-                eligibility.
+                assigns new applications to that year and gives each subscriber company one new 50% benefit
+                for the edition. Previous applications and payments keep their original year. Review
+                subscriber expiry dates separately; changing the event year does not renew subscriptions.
               </small>
               <ImageUploadField
                 label="Partner logo"
@@ -1664,6 +1665,10 @@ export default function AdminPanel() {
               Save awards page
             </button>
             <h2>Recent award registrations</h2>
+            <p>
+              Event year is preserved on each registration. Changing the awards year opens a new
+              subscriber-benefit allowance without deleting previous entries.
+            </p>
             {role === 'administrator' && <ExcelDownload kind="awards" notify={notify} />}
             {role === 'administrator' && (
               <ManualAwardForm
@@ -1677,6 +1682,7 @@ export default function AdminPanel() {
                   <thead>
                     <tr>
                       <th>Date</th>
+                      <th>Event year</th>
                       <th>Name</th>
                       <th>Company</th>
                       <th>Categories</th>
@@ -1687,6 +1693,7 @@ export default function AdminPanel() {
                     {awards.applications.map((row) => (
                       <tr key={row.public_id}>
                         <td>{new Date(row.created_at).toLocaleString()}</td>
+                        <td>{row.event_year}</td>
                         <td>
                           {row.full_name}
                           <br />

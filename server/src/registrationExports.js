@@ -126,6 +126,7 @@ export async function registrationWorkbook(kind, data) {
       'Awards applications',
       [
         ['Application reference', 'application_reference', 40],
+        ['Event year', 'event_year', 14, (value) => (value == null ? null : Number(value))],
         ['Application created (IST)', 'application_created', 26, istDate],
         ['Applicant', 'full_name', 28],
         ['Company', 'company', 30],

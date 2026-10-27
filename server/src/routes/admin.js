@@ -11,6 +11,8 @@ import { validateManualRegistration } from '../manualRegistration.js';
 import { validateManualAward, awardConfirmation } from '../manualAwards.js';
 import { regenerateComplimentaryLink } from '../complimentaryLinks.js';
 import { validateSubscriber } from '../subscriberRules.js';
+import { saveSubscriber, currentAwardYear, reserveSubscriberBenefit } from '../subscriberCompanies.js';
+import { readSubscriberImport } from '../subscriberImport.js';
 import { registrationWorkbook } from '../registrationExports.js';
 import {
   issueCsrf,
@@ -420,6 +422,8 @@ adminRouter.post('/awards/manual', requireAdministrator, requireCsrf, async (req
           { status: 409 },
         );
       application = { ...row, ...data.fields, categories: data.categories };
+      if (row.subscriber_id)
+        await reserveSubscriberBenefit(connection, row.subscriber_id, row.event_year, row.id);
       await connection.execute(
         "UPDATE award_applications SET categories=?,full_name=?,company=?,mobile=?,email=?,coordinator_name=?,coordinator_number=?,gstin=?,city=?,state=?,billing_address=?,status='paid' WHERE id=?",
         [
@@ -461,6 +465,10 @@ adminRouter.post('/awards/manual', requireAdministrator, requireCsrf, async (req
         ],
       );
       application.id = insert.insertId;
+      await connection.execute('UPDATE award_applications SET event_year=? WHERE id=?', [
+        await currentAwardYear(connection),
+        application.id,
+      ]);
     }
     if (product.inventory_limit !== null) {
       const [[sold]] = await connection.execute(
@@ -1047,7 +1055,7 @@ adminRouter.get('/exports/:kind.xlsx', requireAdministrator, async (req, res, ne
       );
     else
       data.applications = await query(
-        "SELECT aa.public_id AS application_reference,aa.created_at AS application_created,aa.full_name,aa.company,aa.mobile,aa.email,aa.coordinator_name,aa.coordinator_number,aa.city,aa.state,aa.gstin,aa.billing_address,aa.categories,aa.status AS application_status,aa.subscriber_verified_at,o.public_id,o.subtotal_paise,o.discount_percent,o.discount_paise,o.discount_reason,o.tax_paise,o.total_paise,o.status,o.payment_method,o.payment_reference,o.paid_at,o.provider_order_id,o.provider_payment_id,o.payment_notes FROM award_applications aa LEFT JOIN commerce_orders o ON o.id=(SELECT co.id FROM commerce_orders co WHERE co.award_application_id=aa.id ORDER BY (co.status='paid') DESC,co.id DESC LIMIT 1) ORDER BY aa.id DESC",
+        "SELECT aa.public_id AS application_reference,aa.event_year,aa.created_at AS application_created,aa.full_name,aa.company,aa.mobile,aa.email,aa.coordinator_name,aa.coordinator_number,aa.city,aa.state,aa.gstin,aa.billing_address,aa.categories,aa.status AS application_status,aa.subscriber_verified_at,o.public_id,o.subtotal_paise,o.discount_percent,o.discount_paise,o.discount_reason,o.tax_paise,o.total_paise,o.status,o.payment_method,o.payment_reference,o.paid_at,o.provider_order_id,o.provider_payment_id,o.payment_notes FROM award_applications aa LEFT JOIN commerce_orders o ON o.id=(SELECT co.id FROM commerce_orders co WHERE co.award_application_id=aa.id ORDER BY (co.status='paid') DESC,co.id DESC LIMIT 1) ORDER BY aa.id DESC",
       );
     const buffer = await registrationWorkbook(kind, data);
     await audit(req, 'export_xlsx', kind, null, {
@@ -1154,6 +1162,101 @@ adminRouter.post(
     }
   },
 );
+const subscriberUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024, files: 1, fields: 0 },
+}).single('file');
+adminRouter.post(
+  '/magazine-subscribers/import/preview',
+  requireAdministrator,
+  requireCsrf,
+  (req, res, next) => {
+    subscriberUpload(req, res, (error) =>
+      error ? res.status(422).json({ error: 'Upload one XLSX file under 2 MB.' }) : next(),
+    );
+  },
+  async (req, res, next) => {
+    try {
+      delete req.session.subscriberImport;
+      if (!req.file || !req.file.originalname.toLowerCase().endsWith('.xlsx'))
+        return res.status(422).json({ error: 'Choose an XLSX workbook.' });
+      const rows = await readSubscriberImport(req.file.buffer);
+      const contacts = rows
+        .flatMap((r) => [r.record.mobile, r.record.mobile2, r.record.email])
+        .filter(Boolean);
+      if (contacts.length) {
+        const slots = contacts.map(() => '?').join(',');
+        const existing = await query(
+          `SELECT mobile,mobile2,email FROM magazine_subscribers WHERE mobile IN (${slots}) OR mobile2 IN (${slots}) OR email IN (${slots})`,
+          [...contacts, ...contacts, ...contacts],
+        );
+        const used = new Set(existing.flatMap((r) => [r.mobile, r.mobile2, r.email]).filter(Boolean));
+        for (const row of rows)
+          if (
+            [row.record.mobile, row.record.mobile2, row.record.email].some(
+              (value) => value && used.has(value),
+            )
+          )
+            row.error ||=
+              'Contact already exists. Edit the existing subscriber instead; no overwrite will occur.';
+      }
+      const id = crypto.randomUUID();
+      req.session.subscriberImport = {
+        id,
+        expiresAt: Date.now() + 10 * 60000,
+        rows: rows.filter((r) => !r.error).map((r) => r.record),
+      };
+      res.set('Cache-Control', 'no-store').json({ id, rows });
+    } catch (error) {
+      if (error.status) return res.status(error.status).json({ error: error.message });
+      next(error);
+    }
+  },
+);
+adminRouter.post(
+  '/magazine-subscribers/import/confirm',
+  requireAdministrator,
+  requireCsrf,
+  async (req, res, next) => {
+    const preview = req.session.subscriberImport;
+    if (
+      !preview ||
+      preview.id !== req.body.previewId ||
+      preview.expiresAt < Date.now() ||
+      !preview.rows.length
+    )
+      return res.status(422).json({ error: 'Import preview is empty or expired. Upload the file again.' });
+    const db = await pool.getConnection();
+    try {
+      await db.beginTransaction();
+      for (const row of preview.rows)
+        await saveSubscriber(db, validateSubscriber({ ...row, is_active: Boolean(row.is_active) }));
+      await db.execute(
+        'INSERT INTO admin_audit_log (admin_user_id,action,entity_type,metadata) VALUES (?,?,?,?)',
+        [
+          req.session.adminId,
+          'bulk_import',
+          'magazine_subscriber',
+          JSON.stringify({ count: preview.rows.length }),
+        ],
+      );
+      await db.commit();
+      delete req.session.subscriberImport;
+      res.json({ imported: preview.rows.length });
+    } catch (error) {
+      await db.rollback();
+      if (error.code === 'ER_DUP_ENTRY')
+        return res
+          .status(409)
+          .json({ error: 'A contact was added since preview. No rows were saved. Preview the file again.' });
+      if (error.status) return res.status(error.status).json({ error: error.message });
+      next(error);
+    } finally {
+      db.release();
+    }
+  },
+);
+
 adminRouter.get('/magazine-subscribers', requireAdministrator, async (req, res, next) => {
   try {
     const term = String(req.query.search || '')
@@ -1161,8 +1264,8 @@ adminRouter.get('/magazine-subscribers', requireAdministrator, async (req, res, 
       .slice(0, 200);
     res.json(
       await query(
-        "SELECT id,full_name,company,mobile,email,is_active,DATE_FORMAT(valid_until,'%Y-%m-%d') AS valid_until FROM magazine_subscribers WHERE full_name LIKE ? OR company LIKE ? OR mobile LIKE ? OR email LIKE ? ORDER BY id DESC LIMIT 500",
-        Array(4).fill(`%${term}%`),
+        "SELECT id,full_name,company,company_id,mobile,mobile2,email,is_active,DATE_FORMAT(valid_until,'%Y-%m-%d') AS valid_until FROM magazine_subscribers WHERE full_name LIKE ? OR company LIKE ? OR mobile LIKE ? OR mobile2 LIKE ? OR email LIKE ? ORDER BY id DESC LIMIT 500",
+        Array(5).fill(`%${term}%`),
       ),
     );
   } catch (error) {
@@ -1170,38 +1273,43 @@ adminRouter.get('/magazine-subscribers', requireAdministrator, async (req, res, 
   }
 });
 adminRouter.post('/magazine-subscribers', requireAdministrator, requireCsrf, async (req, res, next) => {
+  const db = await pool.getConnection();
   try {
     const row = validateSubscriber(req.body);
-    const result = await query(
-      'INSERT INTO magazine_subscribers (full_name,company,mobile,email,is_active,valid_until) VALUES (?,?,?,?,?,?)',
-      [row.full_name, row.company, row.mobile, row.email, row.is_active, row.valid_until],
-    );
-    await audit(req, 'create', 'magazine_subscriber', result.insertId);
+    await db.beginTransaction();
+    const id = await saveSubscriber(db, row);
+    await db.commit();
+    await audit(req, 'create', 'magazine_subscriber', id);
     res.status(201).json({ ok: true });
   } catch (error) {
+    await db.rollback();
     if (error.code === 'ER_DUP_ENTRY')
       return res
         .status(409)
         .json({ error: 'This mobile or email already belongs to a subscriber. Edit that record instead.' });
     if (error.status) return res.status(error.status).json({ error: error.message });
     next(error);
+  } finally {
+    db.release();
   }
 });
 adminRouter.put('/magazine-subscribers/:id', requireAdministrator, requireCsrf, async (req, res, next) => {
+  const db = await pool.getConnection();
   try {
     const row = validateSubscriber(req.body);
-    const result = await query(
-      'UPDATE magazine_subscribers SET full_name=?,company=?,mobile=?,email=?,is_active=?,valid_until=? WHERE id=?',
-      [row.full_name, row.company, row.mobile, row.email, row.is_active, row.valid_until, req.params.id],
-    );
-    if (!result.affectedRows) return res.status(404).json({ error: 'Subscriber not found.' });
+    await db.beginTransaction();
+    await saveSubscriber(db, row, req.params.id);
+    await db.commit();
     await audit(req, row.is_active ? 'update' : 'disable', 'magazine_subscriber', req.params.id);
     res.json({ ok: true });
   } catch (error) {
+    await db.rollback();
     if (error.code === 'ER_DUP_ENTRY')
       return res.status(409).json({ error: 'This mobile or email belongs to another subscriber.' });
     if (error.status) return res.status(error.status).json({ error: error.message });
     next(error);
+  } finally {
+    db.release();
   }
 });
 

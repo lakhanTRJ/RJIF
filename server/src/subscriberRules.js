@@ -29,14 +29,20 @@ export function subscriberActive(row, now = new Date()) {
 }
 export function subscriberMatches(row, channel, contactHash, applicant, secret) {
   if (!subscriberActive(row)) return false;
-  const stored = normalizeSubscriberContact(channel, channel === 'email' ? row.email : row.mobile);
   const supplied = normalizeSubscriberContact(
     channel,
     channel === 'email' ? applicant.email : applicant.mobile,
   );
   return Boolean(
-    stored && supplied === stored && privateHash(secret, `${channel}:${stored}`) === contactHash,
+    supplied &&
+      subscriberContacts(row, channel).includes(supplied) &&
+      privateHash(secret, `${channel}:${supplied}`) === contactHash,
   );
+}
+export function subscriberContacts(row, channel) {
+  return (channel === 'email' ? [row.email] : [row.mobile, row.mobile2])
+    .map((value) => normalizeSubscriberContact(channel, value))
+    .filter(Boolean);
 }
 export function validateSubscriber(body) {
   const full_name = String(body.full_name || '')
@@ -46,10 +52,18 @@ export function validateSubscriber(body) {
     .trim()
     .slice(0, 200);
   const mobile = normalizeMobile(body.mobile);
+  const mobile2 = String(body.mobile2 || '').trim() ? normalizeMobile(body.mobile2) : null;
   const rawEmail = String(body.email || '').trim();
   const email = rawEmail ? normalizeSubscriberContact('email', rawEmail) : null;
   const valid_until = String(body.valid_until || '').trim();
-  if (!full_name || !company || !mobile || (rawEmail && !email))
+  if (
+    !full_name ||
+    !company ||
+    !mobile ||
+    (body.mobile2 && !mobile2) ||
+    mobile === mobile2 ||
+    (rawEmail && !email)
+  )
     throw Object.assign(
       new Error('Enter name, company, a valid mobile with country code, and a valid email if provided.'),
       { status: 422 },
@@ -65,6 +79,7 @@ export function validateSubscriber(body) {
     full_name,
     company,
     mobile,
+    mobile2,
     email,
     valid_until: valid_until || null,
     is_active: body.is_active === false ? 0 : 1,

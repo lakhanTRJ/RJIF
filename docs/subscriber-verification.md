@@ -2,7 +2,7 @@
 
 ## Configuration
 
-Apply migrations through `018_magazine_subscribers.sql` before starting this release. Back up the database first.
+Apply migrations through `019_subscriber_company_benefits.sql` before starting this release. Back up the database first.
 
 Existing SMTP configuration is used for email OTPs. WhatsApp is enabled only when these server environment variables are configured:
 
@@ -33,7 +33,23 @@ The subscriber list is separate from public articles, event staff, and ordinary 
 
 Example with a ₹50,000 registration fee and 18% GST: ₹25,000 discount + ₹4,500 GST = ₹29,500 payable. Non-subscribers pay the normal fee. This does not stack with manual discounts or create delegate QR passes.
 
-No per-subscriber redemption cap is imposed; the requested rule is eligibility-based. Separate nominations by a subscriber can each qualify after verification.
+## Companies, second mobiles and annual editions
+
+Each subscriber has a required primary mobile and optional second mobile. Either can verify the same company. A dedicated unique contacts index prevents the same phone being assigned to two subscriber records, including across the primary/secondary columns. Email remains optional and singular.
+
+Company identity is assigned server-side from the administrator's company name, not the applicant's typed company. Records with the same company name share a company ID; use consistent company names and review spelling variants before importing. Company-name spelling variants are not automatically fuzzy-merged. Admins should not rename a company to give it a second benefit.
+
+Only ONE subscriber-discount application per company per event year is permitted. The database primary key on `(company_id,event_year)` enforces this across both phones, separate sessions and concurrent requests. Creating an unpaid application reserves the benefit. A company that verifies again can resume its existing unpaid application; a completed/cancelled application does not automatically release the allowance. Regular-price applications are unrestricted. Multiple categories remain allowed on the one application. Existing discounted payment sessions are reused, not recreated on a fresh checkout session.
+
+Set **Admin → Business Awards → Awards event year** to the next edition (for example 2028) when that edition opens. Update dates, categories, guidelines and fees, and review subscribers' active/expiry status. New applications retain the server-assigned event year; old applications/payments are preserved. A previous edition's unpaid application cannot start a new checkout at next-edition prices. Already-created orders retain their stored amounts and management links. Do not toggle years backwards to reopen an old edition.
+
+The migration backfills existing applications as 2027 and reserves existing subscriber applications, preferring a paid one if historical duplicates already exist. It does not delete/refund historical registrations or automatically cancel old gateway orders. Review any pre-existing duplicate discounted payments before rollout.
+
+## Bulk Excel import
+
+Administrator-only preview and confirmation in Magazine Subscribers. Upload the first worksheet of an `.xlsx` file (max 2 MB / 500 rows) with headers `Name`, `Company Name`, `Mobile 1`, `Mobile 2`, `Email`, `Eligibility`. The first three are required; the rest optional. `Eligibility` is the inclusive last eligible date, preferably an Excel date or `YYYY-MM-DD`. New records are explicitly active. A blank expiry means no expiry, not an unknown date filled with today's date.
+
+Preview flags invalid numbers, multiple/invalid emails, duplicate contacts within the workbook and contacts already in the database. It never overwrites existing subscribers or silently merges conflicting rows. The administrator confirms adding only ready rows; flagged rows must be corrected and uploaded again. Import data is session-bound and expires after ten minutes. Confirmation revalidates every row and inserts the ready batch transactionally; a uniqueness race rolls the entire batch back. No messages are sent on import. Uploaded workbooks are processed in memory, not stored in the public media directory or Git. The private source subscriber workbook must never be committed.
 
 Disabling a subscriber does not change an already-created gateway order or an already-paid registration. Discount eligibility is checked when a new order is created. Do not change or refund historical payments automatically.
 

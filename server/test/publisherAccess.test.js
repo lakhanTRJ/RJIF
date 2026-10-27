@@ -59,6 +59,8 @@ test('publishers cannot read customer data, mutate website settings or manage ac
     'exports/registrations.xlsx',
     'exports/awards.xlsx',
     'magazine-subscribers/1',
+    'magazine-subscribers/import/preview',
+    'magazine-subscribers/import/confirm',
     'team-accounts/1',
     'check-in/dashboard',
     'check-in/scan',

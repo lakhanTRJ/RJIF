@@ -1,7 +1,12 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import crypto from 'node:crypto';
-import { normalizeSubscriberContact, privateHash, subscriberActive } from './subscriberRules.js';
+import {
+  normalizeSubscriberContact,
+  privateHash,
+  subscriberActive,
+  subscriberContacts,
+} from './subscriberRules.js';
 
 export function whatsappOtpPayload(to, code, settings) {
   return {
@@ -86,8 +91,8 @@ export function createSubscriberVerificationRouter({
     try {
       await db.beginTransaction();
       const [[row]] = await db.execute(
-        `SELECT *,DATE_FORMAT(valid_until,'%Y-%m-%d') AS valid_until FROM magazine_subscribers WHERE ${channel === 'email' ? 'email' : 'mobile'}=? FOR UPDATE`,
-        [contact],
+        `SELECT *,DATE_FORMAT(valid_until,'%Y-%m-%d') AS valid_until FROM magazine_subscribers WHERE ${channel === 'email' ? 'email=?' : '(mobile=? OR mobile2=?)'} FOR UPDATE`,
+        channel === 'email' ? [contact] : [contact, contact],
       );
       subscriber = subscriberActive(row) ? row : null;
       const [[count]] = await db.execute(
@@ -192,12 +197,11 @@ export function createSubscriberVerificationRouter({
           .status(422)
           .json({ error: 'Subscriber eligibility has changed. Please contact the organiser.' });
       }
-      const storedContact = normalizeSubscriberContact(
-        challenge.channel,
-        challenge.channel === 'email' ? subscriber.email : subscriber.mobile,
-      );
       if (
-        privateHash(config.sessionSecret, `${challenge.channel}:${storedContact}`) !== challenge.contact_hash
+        !subscriberContacts(subscriber, challenge.channel).some(
+          (contact) =>
+            privateHash(config.sessionSecret, `${challenge.channel}:${contact}`) === challenge.contact_hash,
+        )
       ) {
         await db.rollback();
         return res.status(422).json({ error: 'Subscriber contact has changed. Request a new code.' });

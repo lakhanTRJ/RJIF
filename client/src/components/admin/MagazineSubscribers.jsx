@@ -1,7 +1,16 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api.js';
+import SubscriberImport from './SubscriberImport.jsx';
 
-const blank = { full_name: '', company: '', mobile: '', email: '', valid_until: '', is_active: true };
+const blank = {
+  full_name: '',
+  company: '',
+  mobile: '',
+  mobile2: '',
+  email: '',
+  valid_until: '',
+  is_active: true,
+};
 export default function MagazineSubscribers() {
   const [rows, setRows] = useState([]),
     [search, setSearch] = useState(''),
@@ -18,8 +27,16 @@ export default function MagazineSubscribers() {
       <p>
         Add verified 5-year magazine subscribers only. Active, unexpired records qualify for 50% off the
         Business Excellence Awards fee after email or WhatsApp OTP verification. Mobile is required; email is
-        optional. This does not grant a delegate pass or change public pricing.
+        optional. Either mobile can verify the same company. Only one subscriber-discount application per
+        company per event year is allowed; unpaid applications can be resumed. Regular-price registrations are
+        unrestricted.
       </p>
+      <SubscriberImport
+        onImported={async () => {
+          setSearch('');
+          setRows(await api('/admin/magazine-subscribers'));
+        }}
+      />
       {message && (
         <p className="notice" role="status">
           {message}
@@ -53,6 +70,7 @@ export default function MagazineSubscribers() {
           ['full_name', 'Subscriber name'],
           ['company', 'Company'],
           ['mobile', 'Registered mobile (include country code)'],
+          ['mobile2', 'Second registered mobile (optional)'],
           ['email', 'Registered email (optional)', 'email'],
           ['valid_until', 'Eligible until (optional)', 'date'],
         ].map(([key, label, type]) => (
@@ -61,7 +79,7 @@ export default function MagazineSubscribers() {
             <input
               type={type || 'text'}
               value={record[key] || ''}
-              required={!['email', 'valid_until'].includes(key)}
+              required={!['email', 'valid_until', 'mobile2'].includes(key)}
               maxLength={key === 'email' ? 255 : 200}
               onChange={(e) => setRecord({ ...record, [key]: e.target.value })}
             />
@@ -122,6 +140,12 @@ export default function MagazineSubscribers() {
                 <td>
                   {row.mobile}
                   <br />
+                  {row.mobile2 && (
+                    <>
+                      {row.mobile2}
+                      <br />
+                    </>
+                  )}
                   {row.email || 'No email'}
                 </td>
                 <td>

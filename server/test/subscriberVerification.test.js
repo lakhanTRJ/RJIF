@@ -14,6 +14,7 @@ function setup({ deliveryFails = false } = {}) {
     id: 1,
     full_name: 'Subscriber',
     mobile: '+919876543210',
+    mobile2: '+919876543211',
     email: 'test@example.com',
     is_active: 1,
     valid_until: '2099-01-01',
@@ -26,7 +27,7 @@ function setup({ deliveryFails = false } = {}) {
         ? args[0] === subscriber.id
         : sql.includes('WHERE email=')
           ? args[0] === subscriber.email
-          : args[0] === subscriber.mobile;
+          : [subscriber.mobile, subscriber.mobile2].includes(args[0]);
       return [match ? [{ ...subscriber }] : []];
     }
     if (sql.includes('COUNT(*)')) {
@@ -113,6 +114,20 @@ test('WhatsApp OTP verification is session-bound, single-use, and stores only ha
   assert.equal((await state.agent.get('/proof')).body.subscriberId, 1);
   assert.equal((await state.agent.post('/verify/verify').send({ challengeId: id, code })).status, 422);
 });
+test('secondary WhatsApp number can request and verify an OTP for the same subscriber', async () => {
+  const state = setup();
+  const response = await send(state.agent, state.subscriber.mobile2);
+  assert.equal(response.status, 200);
+  assert.equal(state.messages[0].contact, state.subscriber.mobile2);
+  const verified = await state.agent
+    .post('/verify/verify')
+    .send({ challengeId: response.body.challengeId, code: state.messages[0].code });
+  assert.equal(verified.status, 200);
+  assert.equal(verified.body.verified, true);
+  const proof = await state.agent.get('/proof');
+  assert.equal(proof.body.subscriberId, state.subscriber.id);
+});
+
 test('email verification works and non-subscribers get no OTP or eligibility information', async () => {
   const state = setup();
   const sent = await send(state.agent, ' TEST@example.com ', 'email');
@@ -126,7 +141,7 @@ test('email verification works and non-subscribers get no OTP or eligibility inf
     true,
   );
   const other = setup();
-  const response = await send(other.agent, '+919876543211');
+  const response = await send(other.agent, '+919876543219');
   assert.equal(response.status, 200);
   assert.equal(response.body.message, sent.body.message);
   assert.equal(other.messages.length, 0);

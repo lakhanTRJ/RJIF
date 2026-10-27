@@ -67,7 +67,10 @@ export default function SubscriberVerification({ onChange, eventYear = 2027 }) {
             50% discount on your registration fee for the Retail Jeweller Business Excellence Awards{' '}
             {eventYear}.
           </p>
-          <small>Discount applies before GST. One registration fee covers your selected categories.</small>
+          <small>
+            Discount applies before GST. One discounted registration per company for {eventYear}, using either
+            registered mobile. One registration fee covers your selected categories.
+          </small>
         </div>
       </div>
       <div className="subscriber-verification-panel">

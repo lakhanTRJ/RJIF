@@ -7,6 +7,7 @@ import { pool, query } from '../db.js';
 import { config } from '../config.js';
 import { createSubscriberVerificationRouter } from '../subscriberVerification.js';
 import { subscriberMatches, subscriberDiscount } from '../subscriberRules.js';
+import { currentAwardYear, reserveSubscriberBenefit } from '../subscriberCompanies.js';
 import { awardPricing } from '../../../client/src/awardPricing.js';
 import {
   getPassByToken,
@@ -330,7 +331,34 @@ publicRouter.post('/checkout', checkoutLimiter, async (req, res, next) => {
         return res.status(422).json({ error: 'A valid award application is required' });
       }
       awardApplicationId = application.id;
+      if (Number(application.event_year) !== (await currentAwardYear(connection)))
+        throw Object.assign(
+          new Error('This application belongs to a previous event. Contact the organiser before paying.'),
+          { status: 409 },
+        );
       discountPercent = await subscriberDiscount(connection, application, config.sessionSecret);
+      if (discountPercent) {
+        await reserveSubscriberBenefit(
+          connection,
+          application.subscriber_id,
+          application.event_year,
+          application.id,
+        );
+        const [[previous]] = await connection.execute(
+          "SELECT * FROM commerce_orders WHERE award_application_id=? AND status IN ('pending','payment_created','paid') ORDER BY id DESC LIMIT 1 FOR UPDATE",
+          [application.id],
+        );
+        if (previous) {
+          await connection.rollback();
+          return res.json(
+            checkoutPayload(
+              previous,
+              product,
+              previous.provider_order_id ? { id: previous.provider_order_id } : null,
+            ),
+          );
+        }
+      }
     }
     const pricing =
       product.kind === 'award_fee'
@@ -736,6 +764,7 @@ const awardLimiter = rateLimit({
   legacyHeaders: false,
 });
 publicRouter.post('/award-applications', awardLimiter, async (req, res, next) => {
+  const db = await pool.getConnection();
   try {
     const categories = Array.isArray(req.body.categories)
       ? [...new Set(req.body.categories.map((value) => String(value).trim()).filter(Boolean))]
@@ -793,8 +822,35 @@ publicRouter.post('/award-applications', awardLimiter, async (req, res, next) =>
         });
     }
     const publicId = crypto.randomUUID();
-    await query(
-      'INSERT INTO award_applications (public_id,categories,full_name,company,mobile,email,coordinator_name,coordinator_number,gstin,city,state,billing_address,subscriber_id,subscriber_channel,subscriber_contact_hash,subscriber_verified_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    await db.beginTransaction();
+    const eventYear = await currentAwardYear(db);
+    if (proof) {
+      const [[subscriber]] = await db.execute(
+        'SELECT company_id FROM magazine_subscribers WHERE id=? FOR UPDATE',
+        [proof.subscriberId],
+      );
+      await db.execute('SELECT id FROM subscriber_companies WHERE id=? FOR UPDATE', [subscriber.company_id]);
+      const [[existing]] = await db.execute(
+        'SELECT a.public_id,a.status FROM subscriber_award_benefits b JOIN award_applications a ON a.id=b.application_id WHERE b.company_id=? AND b.event_year=?',
+        [subscriber.company_id, eventYear],
+      );
+      if (existing) {
+        await db.rollback();
+        if (existing.status !== 'payment_pending')
+          return res
+            .status(409)
+            .json({
+              error: `Your company has already used its subscriber registration for ${eventYear}. Regular-price registration remains available.`,
+            });
+        return res.json({
+          applicationId: existing.public_id,
+          status: existing.status,
+          checkoutUrl: `/checkout/?pass=awards-registration&application=${encodeURIComponent(existing.public_id)}`,
+        });
+      }
+    }
+    const [application] = await db.execute(
+      'INSERT INTO award_applications (public_id,categories,full_name,company,mobile,email,coordinator_name,coordinator_number,gstin,city,state,billing_address,subscriber_id,subscriber_channel,subscriber_contact_hash,subscriber_verified_at,event_year) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
       [
         publicId,
         JSON.stringify(categories),
@@ -812,8 +868,11 @@ publicRouter.post('/award-applications', awardLimiter, async (req, res, next) =>
         proof?.channel || null,
         proof?.contactHash || null,
         proof ? new Date(proof.verifiedAt) : null,
+        eventYear,
       ],
     );
+    if (proof) await reserveSubscriberBenefit(db, proof.subscriberId, eventYear, application.insertId);
+    await db.commit();
     delete req.session.subscriberProof;
     res.status(201).json({
       applicationId: publicId,
@@ -821,7 +880,11 @@ publicRouter.post('/award-applications', awardLimiter, async (req, res, next) =>
       checkoutUrl: `/checkout/?pass=awards-registration&application=${encodeURIComponent(publicId)}`,
     });
   } catch (error) {
+    await db.rollback();
+    if (error.status) return res.status(error.status).json({ error: error.message });
     next(error);
+  } finally {
+    db.release();
   }
 });
 
@@ -844,7 +907,19 @@ publicRouter.get('/award-applications/:id/quote', async (req, res, next) => {
       await connection.rollback();
       return res.status(404).json({ error: 'Award registration is unavailable.' });
     }
+    if (Number(application.event_year) !== (await currentAwardYear(connection)))
+      throw Object.assign(
+        new Error('This application belongs to a previous event. Contact the organiser before paying.'),
+        { status: 409 },
+      );
     const discount = await subscriberDiscount(connection, application, config.sessionSecret);
+    if (discount)
+      await reserveSubscriberBenefit(
+        connection,
+        application.subscriber_id,
+        application.event_year,
+        application.id,
+      );
     const pricing = awardPricing(Number(product.sale_price_paise), Number(product.tax_rate), discount);
     await connection.commit();
     res.set('Cache-Control', 'no-store').json({ ...pricing, taxRate: Number(product.tax_rate) });
