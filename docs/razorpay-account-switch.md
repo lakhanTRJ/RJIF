@@ -1,0 +1,15 @@
+# Switching Razorpay accounts
+
+Do not overwrite the existing three Razorpay settings directly. Migration 021 adds a public Key ID binding to each commerce order. Deploy this compatible code and migration using the unchanged old settings first.
+
+The root-only `server/scripts/switch-razorpay-account.py` is the single-cutover helper for this deployment (`/etc/rjif/rjif.env`, database `rjif_staging`, service `rjif.service`). It prompts on the terminal for the new Live Key ID, API secret, and distinct webhook secret. Inputs are hidden, never accepted in shell arguments, and never printed. Use a 32+ character webhook secret without spaces, quotes, backslashes, dollar signs or backticks (hex is simplest), exactly matching the secret configured in the new dashboard.
+
+Before any change, it validates both account pairs with read-only orders-list requests. This does not prove webhook delivery or create an order/payment. On explicit `SWITCH` confirmation it backs up the database and environment, pauses the service, binds existing unbound orders to the previous Key ID, retains the existing three settings as `RAZORPAY_LEGACY_*`, atomically installs the new active settings, and starts the service. It refuses a second switch rather than overwrite an older retained account. If a failure occurs after the pause, preserve the backups and inspect service readiness before proceeding; never blindly restore an old environment after accepting new-account payments.
+
+New checkout orders bind to the active Key ID. Existing orders (including pending orders and idempotent checkout retries) keep their original checkout key, payment-fetch credentials and verification secret. Duplicate cleanup also uses the order's bound account. Unknown bindings fail closed instead of falling back to the new account. Manual/offline payment history and paid passes are not migrated to a different merchant account.
+
+Both accounts send webhooks to `/api/public/payments/razorpay/webhook`, using DIFFERENT secrets. The signature identifies the account and must match the order binding before any payment is finalized. Event deduplication is namespaced by account Key ID. Keep the old webhook enabled. Enable the new webhook only after switching and checking readiness. Subscribe to `payment.captured` and `order.paid` as handled by this application. A previously inaccessible historical gateway reference is not made valid by this switch.
+
+After deployment/cutover: verify a newly opened checkout uses the new public Key ID; confirm an existing pending checkout still uses the old ID; test one authorised real payment only with the owner's explicit approval; inspect delivery/processing of a signed new-account webhook. Local tests mock signatures and account routing and do not prove real settlement or webhook delivery. Never paste secrets, raw webhook bodies or environment files into chat.
+
+References: Razorpay's official [orders API](https://github.com/razorpay/razorpay-node/blob/master/documents/order.md) and [webhook setup](https://github.com/razorpay/markdown-docs/blob/master/payments/dashboard/account-settings/webhooks.md).

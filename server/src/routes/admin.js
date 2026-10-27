@@ -23,6 +23,7 @@ import {
   validateAdminSession,
 } from '../security.js';
 import { config } from '../config.js';
+import { razorpayForOrder } from '../razorpayAccounts.js';
 import { detectMediaMime } from '../mediaValidation.js';
 import {
   getPassByToken,
@@ -1099,7 +1100,7 @@ adminRouter.delete(
         Number(req.body.paid_replacement_id),
         req.session.adminId,
         (order) =>
-          assertGatewayUnpaid(order, config.razorpay, fetch, (diagnostic) =>
+          assertGatewayUnpaid(order, razorpayForOrder(order, config), fetch, (diagnostic) =>
             console.error(
               JSON.stringify({
                 level: 'warn',

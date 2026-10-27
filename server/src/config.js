@@ -54,6 +54,11 @@ export const config = {
     keySecret: process.env.RAZORPAY_KEY_SECRET || '',
     webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || '',
   },
+  razorpayLegacy: {
+    keyId: process.env.RAZORPAY_LEGACY_KEY_ID || '',
+    keySecret: process.env.RAZORPAY_LEGACY_KEY_SECRET || '',
+    webhookSecret: process.env.RAZORPAY_LEGACY_WEBHOOK_SECRET || '',
+  },
   db: {
     host: required('DB_HOST'),
     port: Number(process.env.DB_PORT || 3306),
@@ -70,6 +75,14 @@ export const config = {
 export function assertProductionConfig() {
   if (config.env !== 'production') return;
   const errors = [];
+  if (Object.values(config.razorpayLegacy).some(Boolean)) {
+    if (Object.values(config.razorpayLegacy).some((value) => !value))
+      errors.push('All three legacy Razorpay settings are required when retaining an old account');
+    if (config.razorpayLegacy.keyId === config.razorpay.keyId)
+      errors.push('Current and legacy Razorpay accounts must have different Key IDs');
+    if (config.razorpayLegacy.webhookSecret === config.razorpay.webhookSecret)
+      errors.push('Use distinct webhook secrets for the two Razorpay accounts');
+  }
   const isPlaceholder = (value) => /replace|generate|change[-_ ]?me|example\.com/i.test(String(value || ''));
   if (config.sessionSecret.length < 32 || isPlaceholder(config.sessionSecret))
     errors.push('SESSION_SECRET must be a generated value containing at least 32 characters');

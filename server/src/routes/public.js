@@ -5,6 +5,7 @@ import { cleanArticleHtml } from '../articleContent.js';
 import crypto from 'node:crypto';
 import { pool, query } from '../db.js';
 import { config } from '../config.js';
+import { razorpayForOrder, razorpayWebhookAccount, validRazorpaySignature } from '../razorpayAccounts.js';
 import { createSubscriberVerificationRouter } from '../subscriberVerification.js';
 import { subscriberMatches, subscriberDiscount } from '../subscriberRules.js';
 import { currentAwardYear, reserveSubscriberBenefit } from '../subscriberCompanies.js';
@@ -136,9 +137,9 @@ const clean = (value, max = 255) =>
     .trim()
     .slice(0, max);
 const validEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-async function createRazorpayOrder(order) {
-  if (!config.razorpay.keyId || !config.razorpay.keySecret) return null;
-  const auth = Buffer.from(`${config.razorpay.keyId}:${config.razorpay.keySecret}`).toString('base64');
+async function createRazorpayOrder(order, account = config.razorpay) {
+  if (!account.keyId || !account.keySecret) return null;
+  const auth = Buffer.from(`${account.keyId}:${account.keySecret}`).toString('base64');
   const response = await fetch('https://api.razorpay.com/v1/orders', {
     method: 'POST',
     headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' },
@@ -152,8 +153,8 @@ async function createRazorpayOrder(order) {
   if (!response.ok) throw new Error('Payment provider could not create the order');
   return response.json();
 }
-async function fetchRazorpayPayment(paymentId) {
-  const auth = Buffer.from(`${config.razorpay.keyId}:${config.razorpay.keySecret}`).toString('base64');
+async function fetchRazorpayPayment(paymentId, account) {
+  const auth = Buffer.from(`${account.keyId}:${account.keySecret}`).toString('base64');
   const response = await fetch(`https://api.razorpay.com/v1/payments/${encodeURIComponent(paymentId)}`, {
     headers: { Authorization: `Basic ${auth}` },
   });
@@ -241,7 +242,7 @@ function checkoutPayload(order, product, gateway = null) {
     manageUrl: `/registration/?token=${encodeURIComponent(token)}`,
     gateway: gateway
       ? {
-          keyId: config.razorpay.keyId,
+          keyId: razorpayForOrder(order, config).keyId,
           orderId: gateway.id,
           amount: Number(order.total_paise),
           currency: order.currency,
@@ -375,7 +376,7 @@ publicRouter.post('/checkout', checkoutLimiter, async (req, res, next) => {
       total = subtotal + tax,
       publicId = crypto.randomUUID();
     const [result] = await connection.execute(
-      `INSERT INTO commerce_orders (public_id,idempotency_key,product_id,award_application_id,quantity,subtotal_paise,tax_paise,total_paise,currency,customer_name,company,email,phone,gstin,billing_address,status,consented_at,policy_version,paid_at,discount_percent,discount_paise,discount_reason) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),?,?,?,?,?)`,
+      `INSERT INTO commerce_orders (public_id,idempotency_key,product_id,award_application_id,quantity,subtotal_paise,tax_paise,total_paise,currency,customer_name,company,email,phone,gstin,billing_address,status,consented_at,policy_version,paid_at,discount_percent,discount_paise,discount_reason,razorpay_key_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),?,?,?,?,?,?)`,
       [
         publicId,
         idempotencyHash,
@@ -398,6 +399,7 @@ publicRouter.post('/checkout', checkoutLimiter, async (req, res, next) => {
         discountPercent,
         pricing?.discount || 0,
         discountPercent ? 'Verified active 5-year magazine subscriber' : null,
+        config.razorpay.keyId,
       ],
     );
     if (product.kind !== 'award_fee') {
@@ -432,6 +434,7 @@ publicRouter.post('/checkout', checkoutLimiter, async (req, res, next) => {
       checkoutPayload(
         {
           public_id: publicId,
+          razorpay_key_id: config.razorpay.keyId,
           total_paise: total,
           currency: product.currency,
           customer_name: customerName,
@@ -463,22 +466,16 @@ publicRouter.post('/payments/razorpay/verify', checkoutLimiter, async (req, res,
     const orderId = clean(req.body.razorpay_order_id),
       paymentId = clean(req.body.razorpay_payment_id),
       signature = clean(req.body.razorpay_signature, 500);
-    if (!config.razorpay.keySecret || !orderId || !paymentId || !signature)
+    if (!orderId || !paymentId || !signature)
       return res.status(422).json({ error: 'Incomplete payment confirmation' });
-    const expected = crypto
-      .createHmac('sha256', config.razorpay.keySecret)
-      .update(`${orderId}|${paymentId}`)
-      .digest('hex');
-    if (
-      signature.length !== expected.length ||
-      !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
-    )
-      return res.status(400).json({ error: 'Payment signature verification failed' });
     const order = (
       await query('SELECT * FROM commerce_orders WHERE provider_order_id=? LIMIT 1', [orderId])
     )[0];
     if (!order) return res.status(404).json({ error: 'Registration not found' });
-    const payment = await fetchRazorpayPayment(paymentId);
+    const account = razorpayForOrder(order, config);
+    if (!validRazorpaySignature(account.keySecret, `${orderId}|${paymentId}`, signature))
+      return res.status(400).json({ error: 'Payment signature verification failed' });
+    const payment = await fetchRazorpayPayment(paymentId, account);
     await finalizePaidOrder(order, payment);
     res.json({
       ok: true,
@@ -492,17 +489,11 @@ publicRouter.post('/payments/razorpay/verify', checkoutLimiter, async (req, res,
 publicRouter.post('/payments/razorpay/webhook', async (req, res, next) => {
   let eventId = '';
   try {
-    const signature = String(req.get('x-razorpay-signature') || ''),
-      secret = config.razorpay.webhookSecret;
-    if (!secret || !req.rawBody) return res.status(400).json({ error: 'Webhook unavailable' });
-    const expected = crypto.createHmac('sha256', secret).update(req.rawBody).digest('hex');
-    if (
-      signature.length !== expected.length ||
-      !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
-    )
-      return res.status(400).json({ error: 'Invalid signature' });
+    const signature = String(req.get('x-razorpay-signature') || '');
+    const account = razorpayWebhookAccount(req.rawBody, signature, config);
+    if (!account) return res.status(400).json({ error: 'Invalid signature' });
     const event = req.body;
-    eventId = String(req.get('x-razorpay-event-id') || sha256(req.rawBody));
+    eventId = `${account.keyId}:${String(req.get('x-razorpay-event-id') || sha256(req.rawBody)).slice(0, 180)}`;
     await query(
       "INSERT INTO payment_events (provider,provider_event_id,event_type,signature_valid,payload,processing_status) VALUES (?,?,?,?,?,'received') ON DUPLICATE KEY UPDATE attempt_count=attempt_count+1",
       ['razorpay', eventId, String(event.event || 'unknown'), 1, JSON.stringify(event)],
@@ -517,6 +508,8 @@ publicRouter.post('/payments/razorpay/webhook', async (req, res, next) => {
         await query('SELECT * FROM commerce_orders WHERE provider_order_id=? LIMIT 1', [payment.order_id])
       )[0];
       if (!order) throw new Error('Payment order was not found');
+      if (razorpayForOrder(order, config).keyId !== account.keyId)
+        throw new Error('Webhook account does not match the registration account');
       await finalizePaidOrder(order, payment);
     }
     await query(
@@ -592,15 +585,19 @@ publicRouter.post('/orders/:token/payment', checkoutLimiter, async (req, res, ne
       return res.status(409).json({ error: 'This registration does not require payment' });
     let gateway = order.provider_order_id ? { id: order.provider_order_id } : null;
     if (!gateway) {
-      gateway = await createRazorpayOrder({
-        total: Number(order.total_paise),
-        currency: order.currency,
-        publicId: order.public_id,
-      });
+      const account = razorpayForOrder(order, config);
+      gateway = await createRazorpayOrder(
+        {
+          total: Number(order.total_paise),
+          currency: order.currency,
+          publicId: order.public_id,
+        },
+        account,
+      );
       if (!gateway) return res.status(503).json({ error: 'Payment service is temporarily unavailable' });
       await query(
-        "UPDATE commerce_orders SET status='payment_created',provider_order_id=? WHERE id=? AND provider_order_id IS NULL",
-        [gateway.id, order.id],
+        "UPDATE commerce_orders SET status='payment_created',provider_order_id=?,razorpay_key_id=? WHERE id=? AND provider_order_id IS NULL",
+        [gateway.id, account.keyId, order.id],
       );
     }
     res.json(checkoutPayload(order, { name: order.name }, gateway));
@@ -851,12 +848,10 @@ publicRouter.post('/award-applications', awardLimiter, async (req, res, next) =>
       if (existing) {
         await db.rollback();
         if (existing.archived_at)
-          return res
-            .status(409)
-            .json({
-              error:
-                'Your previous discounted application was archived as a duplicate. Contact the organiser. The yearly allowance is not automatically reset.',
-            });
+          return res.status(409).json({
+            error:
+              'Your previous discounted application was archived as a duplicate. Contact the organiser. The yearly allowance is not automatically reset.',
+          });
         if (existing.status !== 'payment_pending')
           return res.status(409).json({
             error: `Your company has already used its subscriber registration for ${eventYear}. Regular-price registration remains available.`,
