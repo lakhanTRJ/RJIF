@@ -3,9 +3,7 @@ import awardsFallback from '../../data/awards.content.json';
 import reference from '../../data/reference.generated.json';
 import { api } from '../../api.js';
 import SubscriberVerification from '../../components/SubscriberVerification.jsx';
-
-const GUIDELINES_URL =
-  'https://retailjewellerindiaforum.com/wp-content/uploads/2026/09/Business-Excellence-Awards-2027-Final-Submission-Guidelines.pdf';
+import { awardsAssets } from '../../awardsAssets.js';
 
 function AwardAccordionBody({ section }) {
   if (section.type === 'timeline')
@@ -75,6 +73,7 @@ export default function BusinessExcellencePage({ path, ui }) {
   const [message, setMessage] = useState('');
   const [subscriber, setSubscriber] = useState({ claim: false, verified: false });
   const eventYear = Number(content.eventYear) || 2027;
+  const pageAssets = awardsAssets(content);
 
   useEffect(() => {
     api('/public/awards')
@@ -124,10 +123,7 @@ export default function BusinessExcellencePage({ path, ui }) {
       </section>
       <section className="awards-about" id="about">
         <div className="awards-about-visual">
-          <img
-            src={asset('2025/07/MD-CEO-Awards.jpeg')}
-            alt="Retail Jeweller Business Excellence Awards presentation"
-          />
+          <img src={pageAssets.introImageUrl} alt="Retail Jeweller Business Excellence Awards gala" />
         </div>
         <div className="awards-about-copy">
           <h1>Retail Jeweller India Business Excellence Awards</h1>
@@ -186,7 +182,7 @@ export default function BusinessExcellencePage({ path, ui }) {
               Select the categories to submit the nominations for the Business Excellence Awards {eventYear}
             </h2>
             <p className="award-guidelines-link">
-              <a href={content.guidelinesUrl || GUIDELINES_URL} target="_blank" rel="noreferrer">
+              <a href={pageAssets.guidelinesUrl} target="_blank" rel="noreferrer">
                 Submission Guidelines
               </a>
             </p>

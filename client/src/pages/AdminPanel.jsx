@@ -13,6 +13,7 @@ import ManualAwardForm from '../components/admin/ManualAwardForm.jsx';
 import MagazineSubscribers from '../components/admin/MagazineSubscribers.jsx';
 import ExcelDownload from '../components/admin/ExcelDownload.jsx';
 import DeleteUnpaidDuplicate from '../components/admin/DeleteUnpaidDuplicate.jsx';
+import { awardsAssets } from '../awardsAssets.js';
 import { adminRoutes } from '../components/admin/adminRoutes.js';
 import '../admin.css';
 import '../admin-updates.css';
@@ -1554,6 +1555,14 @@ export default function AdminPanel() {
                   setAwards({ ...awards, content: { ...awards.content, heroYoutubeUrl } })
                 }
               />
+              <ImageUploadField
+                label="Awards introduction image"
+                value={awardsAssets(awards.content).introImageUrl}
+                onChange={(introImageUrl) =>
+                  setAwards({ ...awards, content: { ...awards.content, introImageUrl } })
+                }
+                altText="Retail Jeweller Business Excellence Awards gala"
+              />
               <Input
                 label="Partner label"
                 value={awards.content.partnerLabel}
@@ -1569,7 +1578,7 @@ export default function AdminPanel() {
               />
               <DocumentUploadField
                 label="Awards submission guidelines PDF"
-                value={awards.content.guidelinesUrl || ''}
+                value={awardsAssets(awards.content).guidelinesUrl}
                 onChange={(guidelinesUrl) =>
                   setAwards({ ...awards, content: { ...awards.content, guidelinesUrl } })
                 }

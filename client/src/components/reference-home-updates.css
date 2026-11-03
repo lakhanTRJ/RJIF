@@ -267,6 +267,17 @@
 .felicitation-about > .felicitation-about-visual {
   padding: 0;
 }
+/* Keep the supplied landscape gala image intact rather than cropping it to the old portrait panel. */
+.awards-page .awards-about > .awards-about-visual {
+  min-height: 0;
+  align-self: center;
+  border-radius: 32px;
+}
+.awards-page .awards-about > .awards-about-visual img {
+  height: auto;
+  object-fit: contain;
+}
+
 .awards-about h1,
 .felicitation-about h1 {
   margin: 0;
