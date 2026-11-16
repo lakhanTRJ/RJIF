@@ -585,10 +585,27 @@ adminRouter.put('/awards', requireAdmin, requireCsrf, async (req, res, next) => 
       content.accordions.length > 20
     )
       return res.status(422).json({ error: 'Enter valid awards content' });
-    const encoded = JSON.stringify(content);
+    if (
+      content.registrationMode !== undefined &&
+      !['invite_only', 'public'].includes(content.registrationMode)
+    )
+      return res.status(422).json({ error: 'Choose Invite only or Public registration.' });
+    const canSetRegistrationMode =
+      req.session.role === 'administrator' && content.registrationMode !== undefined;
+    const encoded = JSON.stringify({
+      ...content,
+      registrationMode:
+        canSetRegistrationMode && content.registrationMode === 'public' ? 'public' : 'invite_only',
+    });
     if (encoded.length > 250000) return res.status(422).json({ error: 'Awards content is too large' });
     await query(
-      'INSERT INTO award_settings (id,content,updated_by) VALUES (1,?,?) ON DUPLICATE KEY UPDATE content=VALUES(content),updated_by=VALUES(updated_by)',
+      `INSERT INTO award_settings (id,content,updated_by) VALUES (1,?,?)
+       ON DUPLICATE KEY UPDATE content=${
+         canSetRegistrationMode
+           ? 'VALUES(content)'
+           : "JSON_SET(VALUES(content), '$.registrationMode', COALESCE(JSON_UNQUOTE(JSON_EXTRACT(content, '$.registrationMode')), 'invite_only'))"
+       },
+       updated_by=VALUES(updated_by)`,
       [encoded, req.session.adminId],
     );
     res.json({ ok: true });

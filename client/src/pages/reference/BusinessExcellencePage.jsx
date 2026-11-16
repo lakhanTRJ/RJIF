@@ -74,12 +74,19 @@ export default function BusinessExcellencePage({ path, ui }) {
   const [message, setMessage] = useState('');
   const [subscriber, setSubscriber] = useState({ claim: false, verified: false });
   const [invite, setInvite] = useState(null);
+  const inviteOnly = content.registrationMode !== 'public';
   const eventYear = Number(content.eventYear) || 2027;
   const pageAssets = awardsAssets(content);
 
   useEffect(() => {
     api('/public/awards')
-      .then((data) => data?.accordions?.length && setContent(data))
+      .then((data) =>
+        setContent({
+          ...awardsFallback,
+          ...data,
+          accordions: data.accordions?.length ? data.accordions : awardsFallback.accordions,
+        }),
+      )
       .catch(() => {});
   }, []);
 
@@ -106,6 +113,7 @@ export default function BusinessExcellencePage({ path, ui }) {
         body: JSON.stringify({
           ...fields,
           categories: selected,
+          event_year: eventYear,
           claim_subscriber_discount: subscriber.claim && subscriber.verified,
         }),
       });
@@ -168,9 +176,9 @@ export default function BusinessExcellencePage({ path, ui }) {
         ))}
       </section>
       <section className="award-form" id="categories">
-        {!invite?.verified ? (
+        {inviteOnly && !invite?.verified ? (
           <AwardInvitationAccess onAccess={setInvite} />
-        ) : invite.used ? (
+        ) : inviteOnly && invite.used ? (
           <div>
             <h2>Application already submitted</h2>
             {invite.checkoutUrl && (
@@ -251,8 +259,14 @@ export default function BusinessExcellencePage({ path, ui }) {
                       name="email"
                       type="email"
                       key={`email-${subscriber.verified ? subscriber.contact : ''}`}
-                      defaultValue={invite.email}
-                      readOnly
+                      defaultValue={
+                        inviteOnly
+                          ? invite.email
+                          : subscriber.verified && subscriber.channel === 'email'
+                            ? subscriber.contact
+                            : ''
+                      }
+                      readOnly={inviteOnly}
                       required
                     />
                   </label>

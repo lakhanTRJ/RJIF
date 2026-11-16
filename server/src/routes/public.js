@@ -8,7 +8,11 @@ import { config } from '../config.js';
 import { razorpayForOrder, razorpayWebhookAccount, validRazorpaySignature } from '../razorpayAccounts.js';
 import { createSubscriberVerificationRouter } from '../subscriberVerification.js';
 import { subscriberMatches, subscriberDiscount } from '../subscriberRules.js';
-import { currentAwardYear, reserveSubscriberBenefit } from '../subscriberCompanies.js';
+import {
+  currentAwardRegistration,
+  currentAwardYear,
+  reserveSubscriberBenefit,
+} from '../subscriberCompanies.js';
 import { awardPricing } from '../../../client/src/awardPricing.js';
 import { lockAwardInvitation, mountAwardInvitationPublic } from '../awardInvitations.js';
 import {
@@ -755,7 +759,7 @@ publicRouter.get('/account-access/:token', accountLimiter, async (req, res, next
 publicRouter.get('/awards', async (req, res, next) => {
   try {
     const row = (await query('SELECT content FROM award_settings WHERE id=1 LIMIT 1'))[0];
-    res.json(parseJson(row?.content, {}));
+    res.set('Cache-Control', 'no-store').json(parseJson(row?.content, {}));
   } catch (error) {
     next(error);
   }
@@ -777,9 +781,6 @@ const awardLimiter = rateLimit({
   legacyHeaders: false,
 });
 publicRouter.post('/award-applications', awardLimiter, async (req, res, next) => {
-  const inviteProof = req.session.awardInviteProof;
-  if (!inviteProof || inviteProof.verifiedUntil <= Date.now())
-    return res.status(403).json({ error: 'Awards registration is by verified invitation only.' });
   const db = await pool.getConnection();
   try {
     const categories = Array.isArray(req.body.categories)
@@ -839,9 +840,16 @@ publicRouter.post('/award-applications', awardLimiter, async (req, res, next) =>
     }
     const publicId = crypto.randomUUID();
     await db.beginTransaction();
-    const eventYear = await currentAwardYear(db);
-    const invitation = await lockAwardInvitation(db, inviteProof, email, eventYear);
-    if (invitation.checkoutUrl) {
+    const { eventYear, registrationMode } = await currentAwardRegistration(db, true);
+    if (req.body.event_year !== undefined && req.body.event_year !== eventYear)
+      throw Object.assign(new Error('The awards edition has changed. Reload the page before applying.'), {
+        status: 409,
+      });
+    const invitation =
+      registrationMode === 'invite_only'
+        ? await lockAwardInvitation(db, req.session.awardInviteProof, email, eventYear)
+        : null;
+    if (invitation?.checkoutUrl) {
       await db.rollback();
       return res.json({ checkoutUrl: invitation.checkoutUrl });
     }
@@ -875,17 +883,19 @@ publicRouter.post('/award-applications', awardLimiter, async (req, res, next) =>
             ),
             { status: 409 },
           );
-        const [[bound]] = await db.execute('SELECT id FROM award_invitations WHERE application_id=?', [
-          existing.id,
-        ]);
-        if (bound)
-          throw Object.assign(new Error('Use the invitation originally used for this application.'), {
-            status: 409,
-          });
-        await db.execute('UPDATE award_invitations SET application_id=? WHERE id=?', [
-          existing.id,
-          invitation.id,
-        ]);
+        if (invitation) {
+          const [[bound]] = await db.execute('SELECT id FROM award_invitations WHERE application_id=?', [
+            existing.id,
+          ]);
+          if (bound)
+            throw Object.assign(new Error('Use the invitation originally used for this application.'), {
+              status: 409,
+            });
+          await db.execute('UPDATE award_invitations SET application_id=? WHERE id=?', [
+            existing.id,
+            invitation.id,
+          ]);
+        }
         await db.commit();
         return res.json({
           applicationId: existing.public_id,
@@ -917,10 +927,11 @@ publicRouter.post('/award-applications', awardLimiter, async (req, res, next) =>
       ],
     );
     if (proof) await reserveSubscriberBenefit(db, proof.subscriberId, eventYear, application.insertId);
-    await db.execute('UPDATE award_invitations SET application_id=? WHERE id=?', [
-      application.insertId,
-      invitation.id,
-    ]);
+    if (invitation)
+      await db.execute('UPDATE award_invitations SET application_id=? WHERE id=?', [
+        application.insertId,
+        invitation.id,
+      ]);
     await db.commit();
     delete req.session.subscriberProof;
     res.status(201).json({

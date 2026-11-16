@@ -70,9 +70,18 @@ export async function reserveSubscriberBenefit(db, subscriberId, eventYear, appl
 }
 
 export async function currentAwardYear(db) {
-  const [[row]] = await db.execute('SELECT content FROM award_settings WHERE id=1');
+  return (await currentAwardRegistration(db)).eventYear;
+}
+
+export async function currentAwardRegistration(db, lock = false) {
+  const [[row]] = await db.execute(
+    `SELECT content FROM award_settings WHERE id=1${lock ? ' LOCK IN SHARE MODE' : ''}`,
+  );
   const content = typeof row?.content === 'string' ? JSON.parse(row.content) : row?.content;
   const year = Number(content?.eventYear || 2027);
   if (!Number.isInteger(year) || year < 2027 || year > 2100) throw new Error('Invalid awards event year');
-  return year;
+  return {
+    eventYear: year,
+    registrationMode: content?.registrationMode === 'public' ? 'public' : 'invite_only',
+  };
 }

@@ -1584,6 +1584,24 @@ export default function AdminPanel() {
                 value={awards.content.eventYear || 2027}
                 onChange={(eventYear) => setAwards({ ...awards, content: { ...awards.content, eventYear } })}
               />
+              {role === 'administrator' && (
+                <label>
+                  Registration mode
+                  <select
+                    value={awards.content.registrationMode === 'public' ? 'public' : 'invite_only'}
+                    onChange={(event) =>
+                      setAwards({
+                        ...awards,
+                        content: { ...awards.content, registrationMode: event.target.value },
+                      })
+                    }
+                  >
+                    <option value="invite_only">Invite only</option>
+                    <option value="public">Public</option>
+                  </select>
+                  <small>Applies to the selected awards year when you save this page.</small>
+                </label>
+              )}
               <DocumentUploadField
                 label="Awards submission guidelines PDF"
                 value={awardsAssets(awards.content).guidelinesUrl}

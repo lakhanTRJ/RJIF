@@ -60,8 +60,8 @@ export default function AwardInvitationAdmin() {
     <section className="admin-card">
       <h2>Awards invitations</h2>
       <p>
-        Public registration is closed. Each invitation is valid for seven days and allows one application.
-        Copy the link when you create it.
+        In Invite only mode, each invitation is valid for seven days and allows one application. Copy the link
+        when you create it.
       </p>
       <form onSubmit={create}>
         <label>
