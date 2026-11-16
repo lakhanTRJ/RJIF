@@ -61,14 +61,10 @@ export default function AwardInvitationAccess({ onAccess }) {
   return (
     <div className="award-contact-grid">
       <div className="wide">
-        <h2>{token ? 'Verify your invitation' : 'Public registration is closed'}</h2>
-        <p>
-          {token
-            ? 'We’ll send a code to the email address on your invitation.'
-            : 'New applications are by invitation only. Open the private link sent by the organiser to apply.'}
-        </p>
+        <h2>{token ? 'Verify your invitation' : 'Registration is closed'}</h2>
         {token && (
           <>
+            <p>We’ll send a code to the email address on your invitation.</p>
             <button type="button" className="ref-button" disabled={busy} onClick={sendCode}>
               {sent ? 'Resend code' : 'Send verification code'}
             </button>
