@@ -15,6 +15,7 @@ import { saveSubscriber, currentAwardYear, reserveSubscriberBenefit } from '../s
 import { readSubscriberImport } from '../subscriberImport.js';
 import { archiveUnpaidDuplicate, assertGatewayUnpaid } from '../unpaidDuplicates.js';
 import { registrationWorkbook } from '../registrationExports.js';
+import { mountAwardInvitationAdmin } from '../awardInvitations.js';
 import {
   issueCsrf,
   requireAdmin,
@@ -349,6 +350,8 @@ adminRouter.post(
     }
   },
 );
+
+mountAwardInvitationAdmin(adminRouter, requireAdministrator, requireCsrf);
 
 adminRouter.get('/awards', requireAdmin, async (req, res, next) => {
   try {

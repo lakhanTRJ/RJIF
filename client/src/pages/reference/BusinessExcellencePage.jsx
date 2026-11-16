@@ -3,6 +3,7 @@ import awardsFallback from '../../data/awards.content.json';
 import reference from '../../data/reference.generated.json';
 import { api } from '../../api.js';
 import SubscriberVerification from '../../components/SubscriberVerification.jsx';
+import AwardInvitationAccess from '../../components/AwardInvitationAccess.jsx';
 import { awardsAssets } from '../../awardsAssets.js';
 
 function AwardAccordionBody({ section }) {
@@ -72,6 +73,7 @@ export default function BusinessExcellencePage({ path, ui }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [subscriber, setSubscriber] = useState({ claim: false, verified: false });
+  const [invite, setInvite] = useState(null);
   const eventYear = Number(content.eventYear) || 2027;
   const pageAssets = awardsAssets(content);
 
@@ -166,112 +168,131 @@ export default function BusinessExcellencePage({ path, ui }) {
         ))}
       </section>
       <section className="award-form" id="categories">
-        <SubscriberVerification onChange={setSubscriber} eventYear={eventYear} />
-        <div className="steps">
-          <b className={step === 1 ? 'active' : ''}>
-            1<small>Apply</small>
-          </b>
-          <i />
-          <b className={step === 2 ? 'active' : ''}>
-            2<small>Contact Info</small>
-          </b>
-        </div>
-        {step === 1 ? (
-          <>
-            <h2>
-              Select the categories to submit the nominations for the Business Excellence Awards {eventYear}
-            </h2>
-            <p className="award-guidelines-link">
-              <a href={pageAssets.guidelinesUrl} target="_blank" rel="noreferrer">
-                Submission Guidelines
+        {!invite?.verified ? (
+          <AwardInvitationAccess onAccess={setInvite} />
+        ) : invite.used ? (
+          <div>
+            <h2>Application already submitted</h2>
+            {invite.checkoutUrl && (
+              <a className="ref-button" href={invite.checkoutUrl}>
+                Resume payment
               </a>
-            </p>
-            <div className="award-category-grid">
-              {categories.map((item) => (
-                <label key={item}>
-                  <input type="checkbox" checked={selected.includes(item)} onChange={() => toggle(item)} />
-                  <span>{item}</span>
-                </label>
-              ))}
-            </div>
-            <button
-              className="ref-button"
-              disabled={!selected.length || (subscriber.claim && !subscriber.verified)}
-              onClick={() => setStep(2)}
-            >
-              Continue to Registration
-            </button>
-          </>
+            )}
+          </div>
         ) : (
-          <form onSubmit={submit}>
-            <h2>Contact information</h2>
-            <div className="award-contact-grid">
-              <label>
-                Full Name
-                <input name="full_name" required />
-              </label>
-              <label>
-                Company
-                <input name="company" required />
-              </label>
-              <label>
-                Mobile Number
-                <input
-                  name="mobile"
-                  key={`mobile-${subscriber.verified ? subscriber.contact : ''}`}
-                  defaultValue={
-                    subscriber.verified && subscriber.channel === 'whatsapp' ? subscriber.contact : ''
-                  }
-                  required
-                />
-              </label>
-              <label>
-                Email
-                <input
-                  name="email"
-                  type="email"
-                  key={`email-${subscriber.verified ? subscriber.contact : ''}`}
-                  defaultValue={
-                    subscriber.verified && subscriber.channel === 'email' ? subscriber.contact : ''
-                  }
-                  required
-                />
-              </label>
-              <label>
-                Coordinator Name
-                <input name="coordinator_name" required />
-              </label>
-              <label>
-                Coordinator Number
-                <input name="coordinator_number" required />
-              </label>
-              <label className="wide">
-                GSTIN
-                <input name="gstin" />
-              </label>
-              <label>
-                City
-                <input name="city" required />
-              </label>
-              <label>
-                State
-                <input name="state" required />
-              </label>
-              <label className="wide">
-                Billing Address
-                <textarea name="billing_address" rows="3" />
-              </label>
+          <>
+            <SubscriberVerification onChange={setSubscriber} eventYear={eventYear} />
+            <div className="steps">
+              <b className={step === 1 ? 'active' : ''}>
+                1<small>Apply</small>
+              </b>
+              <i />
+              <b className={step === 2 ? 'active' : ''}>
+                2<small>Contact Info</small>
+              </b>
             </div>
-            {message && <p className="form-error">{message}</p>}
-            <div className="form-actions">
-              <button type="button" className="ref-button light" onClick={() => setStep(1)}>
-                Back
-              </button>
-              <button className="ref-button" disabled={busy}>
-                {busy ? 'Saving…' : 'Proceed to Payment'}
-              </button>
-            </div>
-          </form>
+            {step === 1 ? (
+              <>
+                <h2>
+                  Select the categories to submit the nominations for the Business Excellence Awards{' '}
+                  {eventYear}
+                </h2>
+                <p className="award-guidelines-link">
+                  <a href={pageAssets.guidelinesUrl} target="_blank" rel="noreferrer">
+                    Submission Guidelines
+                  </a>
+                </p>
+                <div className="award-category-grid">
+                  {categories.map((item) => (
+                    <label key={item}>
+                      <input
+                        type="checkbox"
+                        checked={selected.includes(item)}
+                        onChange={() => toggle(item)}
+                      />
+                      <span>{item}</span>
+                    </label>
+                  ))}
+                </div>
+                <button
+                  className="ref-button"
+                  disabled={!selected.length || (subscriber.claim && !subscriber.verified)}
+                  onClick={() => setStep(2)}
+                >
+                  Continue to Registration
+                </button>
+              </>
+            ) : (
+              <form onSubmit={submit}>
+                <h2>Contact information</h2>
+                <div className="award-contact-grid">
+                  <label>
+                    Full Name
+                    <input name="full_name" required />
+                  </label>
+                  <label>
+                    Company
+                    <input name="company" required />
+                  </label>
+                  <label>
+                    Mobile Number
+                    <input
+                      name="mobile"
+                      key={`mobile-${subscriber.verified ? subscriber.contact : ''}`}
+                      defaultValue={
+                        subscriber.verified && subscriber.channel === 'whatsapp' ? subscriber.contact : ''
+                      }
+                      required
+                    />
+                  </label>
+                  <label>
+                    Email
+                    <input
+                      name="email"
+                      type="email"
+                      key={`email-${subscriber.verified ? subscriber.contact : ''}`}
+                      defaultValue={invite.email}
+                      readOnly
+                      required
+                    />
+                  </label>
+                  <label>
+                    Coordinator Name
+                    <input name="coordinator_name" required />
+                  </label>
+                  <label>
+                    Coordinator Number
+                    <input name="coordinator_number" required />
+                  </label>
+                  <label className="wide">
+                    GSTIN
+                    <input name="gstin" />
+                  </label>
+                  <label>
+                    City
+                    <input name="city" required />
+                  </label>
+                  <label>
+                    State
+                    <input name="state" required />
+                  </label>
+                  <label className="wide">
+                    Billing Address
+                    <textarea name="billing_address" rows="3" />
+                  </label>
+                </div>
+                {message && <p className="form-error">{message}</p>}
+                <div className="form-actions">
+                  <button type="button" className="ref-button light" onClick={() => setStep(1)}>
+                    Back
+                  </button>
+                  <button className="ref-button" disabled={busy}>
+                    {busy ? 'Saving…' : 'Proceed to Payment'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </>
         )}
       </section>
       <Gallery items={reference.awards.gallery} />

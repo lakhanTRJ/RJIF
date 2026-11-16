@@ -90,10 +90,10 @@ export function createApp() {
   app.get('/api/ready', async (req, res) => {
     try {
       const [rows] = await pool.query(
-        "SELECT id FROM schema_migrations WHERE id='021_razorpay_account_binding.sql' LIMIT 1",
+        "SELECT id FROM schema_migrations WHERE id IN ('021_razorpay_account_binding.sql','024_award_invitations.sql')",
       );
       await fs.access(path.resolve(config.uploadDir));
-      if (!rows.length) throw new Error('Database migrations are incomplete');
+      if (rows.length !== 2) throw new Error('Database migrations are incomplete');
       res.json({ status: 'ready' });
     } catch (error) {
       console.error(JSON.stringify({ level: 'error', type: 'readiness', message: error.message }));

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
+import AwardInvitationAdmin from '../components/AwardInvitationAdmin.jsx';
 import ImageUploadField from '../components/admin/ImageUploadField.jsx';
 import DocumentUploadField from '../components/admin/DocumentUploadField.jsx';
 import AdminCheckIn from '../components/admin/AdminCheckIn.jsx';
@@ -1683,6 +1684,7 @@ export default function AdminPanel() {
             >
               Save awards page
             </button>
+            {role === 'administrator' && <AwardInvitationAdmin />}
             <h2>Recent award registrations</h2>
             <p>
               Event year is preserved on each registration. Changing the awards year opens a new

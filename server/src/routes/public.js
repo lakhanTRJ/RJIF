@@ -10,6 +10,7 @@ import { createSubscriberVerificationRouter } from '../subscriberVerification.js
 import { subscriberMatches, subscriberDiscount } from '../subscriberRules.js';
 import { currentAwardYear, reserveSubscriberBenefit } from '../subscriberCompanies.js';
 import { awardPricing } from '../../../client/src/awardPricing.js';
+import { lockAwardInvitation, mountAwardInvitationPublic } from '../awardInvitations.js';
 import {
   getPassByToken,
   issuePassesForOrder,
@@ -24,6 +25,7 @@ import {
 } from '../passService.js';
 
 export const publicRouter = Router();
+mountAwardInvitationPublic(publicRouter);
 publicRouter.use(
   '/subscriber-verification',
   createSubscriberVerificationRouter({ pool, query, config, sendGenericEmail }),
@@ -775,6 +777,9 @@ const awardLimiter = rateLimit({
   legacyHeaders: false,
 });
 publicRouter.post('/award-applications', awardLimiter, async (req, res, next) => {
+  const inviteProof = req.session.awardInviteProof;
+  if (!inviteProof || inviteProof.verifiedUntil <= Date.now())
+    return res.status(403).json({ error: 'Awards registration is by verified invitation only.' });
   const db = await pool.getConnection();
   try {
     const categories = Array.isArray(req.body.categories)
@@ -835,6 +840,11 @@ publicRouter.post('/award-applications', awardLimiter, async (req, res, next) =>
     const publicId = crypto.randomUUID();
     await db.beginTransaction();
     const eventYear = await currentAwardYear(db);
+    const invitation = await lockAwardInvitation(db, inviteProof, email, eventYear);
+    if (invitation.checkoutUrl) {
+      await db.rollback();
+      return res.json({ checkoutUrl: invitation.checkoutUrl });
+    }
     if (proof) {
       const [[subscriber]] = await db.execute(
         'SELECT company_id FROM magazine_subscribers WHERE id=? FOR UPDATE',
@@ -842,20 +852,41 @@ publicRouter.post('/award-applications', awardLimiter, async (req, res, next) =>
       );
       await db.execute('SELECT id FROM subscriber_companies WHERE id=? FOR UPDATE', [subscriber.company_id]);
       const [[existing]] = await db.execute(
-        'SELECT a.public_id,a.status,a.archived_at FROM subscriber_award_benefits b JOIN award_applications a ON a.id=b.application_id WHERE b.company_id=? AND b.event_year=?',
+        'SELECT a.id,a.email,a.public_id,a.status,a.archived_at FROM subscriber_award_benefits b JOIN award_applications a ON a.id=b.application_id WHERE b.company_id=? AND b.event_year=?',
         [subscriber.company_id, eventYear],
       );
       if (existing) {
-        await db.rollback();
         if (existing.archived_at)
-          return res.status(409).json({
-            error:
-              'Your previous discounted application was archived as a duplicate. Contact the organiser. The yearly allowance is not automatically reset.',
-          });
+          throw Object.assign(
+            new Error('Your previous discounted application was archived. Contact the organiser for help.'),
+            { status: 409 },
+          );
         if (existing.status !== 'payment_pending')
-          return res.status(409).json({
-            error: `Your company has already used its subscriber registration for ${eventYear}. Regular-price registration remains available.`,
+          throw Object.assign(
+            new Error(
+              `Your company has already used its subscriber registration for ${eventYear}. Regular-price registration remains available.`,
+            ),
+            { status: 409 },
+          );
+        if (existing.email.toLowerCase() !== email)
+          throw Object.assign(
+            new Error(
+              'Your company already has a pending discounted application. Contact the organiser for help.',
+            ),
+            { status: 409 },
+          );
+        const [[bound]] = await db.execute('SELECT id FROM award_invitations WHERE application_id=?', [
+          existing.id,
+        ]);
+        if (bound)
+          throw Object.assign(new Error('Use the invitation originally used for this application.'), {
+            status: 409,
           });
+        await db.execute('UPDATE award_invitations SET application_id=? WHERE id=?', [
+          existing.id,
+          invitation.id,
+        ]);
+        await db.commit();
         return res.json({
           applicationId: existing.public_id,
           status: existing.status,
@@ -886,6 +917,10 @@ publicRouter.post('/award-applications', awardLimiter, async (req, res, next) =>
       ],
     );
     if (proof) await reserveSubscriberBenefit(db, proof.subscriberId, eventYear, application.insertId);
+    await db.execute('UPDATE award_invitations SET application_id=? WHERE id=?', [
+      application.insertId,
+      invitation.id,
+    ]);
     await db.commit();
     delete req.session.subscriberProof;
     res.status(201).json({
