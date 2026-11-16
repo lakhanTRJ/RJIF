@@ -5,9 +5,12 @@ import { Footer, SiteHeader } from '../components/ReferencePage.jsx';
 
 const formatDate = (value) =>
   value
-    ? new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }).format(
-        new Date(value),
-      )
+    ? new Intl.DateTimeFormat('en-IN', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'Asia/Kolkata',
+      }).format(new Date(value))
     : '';
 function BlogShell({ children, path }) {
   return (

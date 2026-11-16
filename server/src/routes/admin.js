@@ -1692,7 +1692,7 @@ adminRouter.get('/articles', requireAdmin, async (req, res, next) => {
     res.set('Cache-Control', 'no-store');
     res.json(
       await query(
-        'SELECT id,slug,title,excerpt,category,body_html,featured_image_url,seo_title,seo_description,status,publish_at,updated_at FROM articles ORDER BY updated_at DESC',
+        'SELECT id,slug,title,excerpt,category,body_html,featured_image_url,seo_title,seo_description,status,publish_at,created_at,updated_at FROM articles ORDER BY updated_at DESC',
       ),
     );
   } catch (error) {
@@ -1738,21 +1738,53 @@ adminRouter.post('/articles', requireAdmin, requireCsrf, async (req, res, next) 
   }
 });
 adminRouter.put('/articles/:id', requireAdmin, requireCsrf, async (req, res, next) => {
+  let db;
   try {
-    const existing = await query('SELECT * FROM articles WHERE id=? LIMIT 1', [req.params.id]);
-    if (!existing[0]) return res.status(404).json({ error: 'Article not found' });
-    await query(
-      'INSERT INTO article_revisions (article_id,title,excerpt,body_html,changed_by) VALUES (?,?,?,?,?)',
-      [existing[0].id, existing[0].title, existing[0].excerpt, existing[0].body_html, req.session.adminId],
-    );
     const status = ['draft', 'scheduled', 'published', 'archived'].includes(req.body.status)
       ? req.body.status
       : 'draft';
-    const publishAt =
-      status === 'scheduled' ? new Date(req.body.publish_at) : status === 'published' ? new Date() : null;
-    if (status === 'scheduled' && Number.isNaN(publishAt.getTime()))
+    const scheduledAt = req.body.publish_at ? new Date(req.body.publish_at) : null;
+    if (status === 'scheduled' && (!scheduledAt || Number.isNaN(scheduledAt.getTime())))
       return res.status(422).json({ error: 'A valid publication date is required' });
-    await query(
+    const correction = req.body.corrected_publication_date;
+    let correctedAt;
+    if (status === 'published' && correction) {
+      if (typeof correction !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(correction))
+        return res.status(422).json({ error: 'Enter a valid original publication date' });
+      const day = new Date(`${correction}T00:00:00Z`);
+      correctedAt = new Date(`${correction}T00:00:00+05:30`);
+      if (
+        Number.isNaN(day.getTime()) ||
+        day.toISOString().slice(0, 10) !== correction ||
+        correctedAt.getUTCFullYear() < 1971 ||
+        correctedAt > new Date()
+      )
+        return res.status(422).json({ error: 'Enter a valid publication date that is today or earlier' });
+    }
+    db = await pool.getConnection();
+    await db.beginTransaction();
+    const [[existing]] = await db.execute('SELECT * FROM articles WHERE id=? FOR UPDATE', [req.params.id]);
+    if (!existing) {
+      await db.rollback();
+      return res.status(404).json({ error: 'Article not found' });
+    }
+    const originalDate =
+      existing.status === 'published'
+        ? existing.publish_at || existing.created_at
+        : existing.status !== 'scheduled'
+          ? existing.publish_at
+          : null;
+    const publishAt =
+      status === 'scheduled'
+        ? scheduledAt
+        : status === 'published'
+          ? correctedAt || originalDate || new Date()
+          : originalDate;
+    await db.execute(
+      'INSERT INTO article_revisions (article_id,title,excerpt,body_html,changed_by) VALUES (?,?,?,?,?)',
+      [existing.id, existing.title, existing.excerpt, existing.body_html, req.session.adminId],
+    );
+    await db.execute(
       'UPDATE articles SET title=?,excerpt=?,category=?,body_html=?,featured_image_url=?,seo_title=?,seo_description=?,status=?,publish_at=?,published_by=? WHERE id=?',
       [
         String(req.body.title || '').trim(),
@@ -1770,8 +1802,12 @@ adminRouter.put('/articles/:id', requireAdmin, requireCsrf, async (req, res, nex
         req.params.id,
       ],
     );
+    await db.commit();
     res.json({ ok: true });
   } catch (error) {
+    if (db) await db.rollback();
     next(error);
+  } finally {
+    db?.release();
   }
 });

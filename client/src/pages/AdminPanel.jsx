@@ -1931,8 +1931,17 @@ export default function AdminPanel() {
                           <p>
                             {a.category || 'Uncategorised'} <span>·</span> /blog/{a.slug}/
                           </p>
-                          {a.updated_at && (
-                            <small>Updated {new Date(a.updated_at).toLocaleDateString('en-IN')}</small>
+                          {a.status === 'published' && (a.publish_at || a.created_at) ? (
+                            <small>
+                              Published{' '}
+                              {new Date(a.publish_at || a.created_at).toLocaleDateString('en-IN', {
+                                timeZone: 'Asia/Kolkata',
+                              })}
+                            </small>
+                          ) : (
+                            a.updated_at && (
+                              <small>Updated {new Date(a.updated_at).toLocaleDateString('en-IN')}</small>
+                            )
                           )}
                         </div>
                         <span className={`admin-status admin-status-${a.status}`}>{a.status}</span>
@@ -2004,6 +2013,28 @@ export default function AdminPanel() {
                               <option value="archived">Archived</option>
                             </select>
                           </label>
+                          {a.status === 'published' && (
+                            <label>
+                              Correct publication date
+                              <input
+                                type="date"
+                                value={a.corrected_publication_date || ''}
+                                onChange={(event) =>
+                                  setArticles((rows) =>
+                                    rows.map((row) =>
+                                      row.id === a.id
+                                        ? { ...row, corrected_publication_date: event.target.value }
+                                        : row,
+                                    ),
+                                  )
+                                }
+                              />
+                              <small>
+                                Leave blank for normal edits. Choose the original date only if it needs
+                                correcting.
+                              </small>
+                            </label>
+                          )}
                           <div className="admin-article-actions">
                             <button
                               type="button"

@@ -64,7 +64,7 @@ export async function getPublishedPage(path) {
 
 export async function getPublishedArticle(slug) {
   const rows = await query(
-    "SELECT id,slug,title,excerpt,category,body_html,featured_image_url,seo_title,seo_description,publish_at AS published_at FROM articles WHERE slug=? AND status='published' AND (publish_at IS NULL OR publish_at<=NOW()) LIMIT 1",
+    "SELECT id,slug,title,excerpt,category,body_html,featured_image_url,seo_title,seo_description,COALESCE(publish_at,created_at) AS published_at FROM articles WHERE slug=? AND status='published' AND (publish_at IS NULL OR publish_at<=NOW()) LIMIT 1",
     [slug],
   );
   if (!rows[0]) return null;
@@ -1054,7 +1054,7 @@ publicRouter.get('/articles', async (req, res, next) => {
   try {
     res.json(
       await query(
-        "SELECT slug,title,excerpt,category,featured_image_url,publish_at AS published_at FROM articles WHERE status='published' AND (publish_at IS NULL OR publish_at<=NOW()) ORDER BY COALESCE(publish_at,created_at) DESC LIMIT 100",
+        "SELECT slug,title,excerpt,category,featured_image_url,COALESCE(publish_at,created_at) AS published_at FROM articles WHERE status='published' AND (publish_at IS NULL OR publish_at<=NOW()) ORDER BY published_at DESC LIMIT 100",
       ),
     );
   } catch (error) {
