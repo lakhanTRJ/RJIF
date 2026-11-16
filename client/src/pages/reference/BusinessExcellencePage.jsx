@@ -136,7 +136,7 @@ export default function BusinessExcellencePage({ path, ui }) {
           <img src={pageAssets.introImageUrl} alt="Retail Jeweller Business Excellence Awards gala" />
         </div>
         <div className="awards-about-copy">
-          <h1>Retail Jeweller India Business Excellence Awards</h1>
+          <h1>The Retail Jeweller India Business Excellence Awards</h1>
           <span className="red-rule" />
           <p>
             In a dynamic and competitive jewellery industry, excellence is reflected in every aspect of a
