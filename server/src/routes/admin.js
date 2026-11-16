@@ -353,13 +353,30 @@ adminRouter.post(
 
 mountAwardInvitationAdmin(adminRouter, requireAdministrator, requireCsrf);
 
+const orderPaymentStatuses = ['pending', 'payment_created', 'paid', 'failed', 'cancelled', 'refunded'];
+
 adminRouter.get('/awards', requireAdmin, async (req, res, next) => {
   try {
+    const status = req.query.payment_status;
+    if (status !== undefined && ![...orderPaymentStatuses, 'payment_pending'].includes(status))
+      return res.status(422).json({ error: 'Invalid payment status.' });
     const settings = (await query('SELECT content,updated_at FROM award_settings WHERE id=1 LIMIT 1'))[0] || {
       content: {},
     };
+    const paymentStatus =
+      "CASE WHEN aa.status='cancelled' THEN aa.status WHEN latest.status IN ('paid','refunded') THEN latest.status WHEN aa.status='paid' THEN aa.status ELSE COALESCE(latest.status,aa.status) END";
     const applications = await query(
-      "SELECT aa.*,o.payment_method,o.payment_reference,o.total_paise,o.discount_percent,o.discount_paise,o.discount_reason FROM award_applications aa LEFT JOIN commerce_orders o ON o.id=(SELECT MAX(co.id) FROM commerce_orders co WHERE co.award_application_id=aa.id AND co.status='paid') WHERE aa.archived_at IS NULL ORDER BY aa.id DESC LIMIT 250",
+      `SELECT aa.*,${paymentStatus} AS payment_status,
+              o.payment_method,o.payment_reference,o.total_paise,o.discount_percent,o.discount_paise,o.discount_reason
+       FROM award_applications aa
+       LEFT JOIN commerce_orders o ON o.id=(SELECT MAX(co.id) FROM commerce_orders co WHERE co.award_application_id=aa.id AND co.status='paid')
+       LEFT JOIN commerce_orders latest ON latest.id=(
+         SELECT co.id FROM commerce_orders co WHERE co.award_application_id=aa.id AND co.archived_at IS NULL
+         ORDER BY (co.status IN ('paid','refunded')) DESC, co.id DESC LIMIT 1
+       )
+       WHERE aa.archived_at IS NULL ${status ? `AND (${paymentStatus})=?` : ''}
+       ORDER BY aa.id DESC LIMIT 250`,
+      status ? [status] : [],
     );
     res.json({
       content: typeof settings.content === 'string' ? JSON.parse(settings.content) : settings.content,
@@ -1080,8 +1097,12 @@ adminRouter.get('/exports/:kind.xlsx', requireAdministrator, async (req, res, ne
 
 adminRouter.get('/registrations', requireAdmin, async (req, res, next) => {
   try {
+    const status = req.query.payment_status;
+    if (status !== undefined && !orderPaymentStatuses.includes(status))
+      return res.status(422).json({ error: 'Invalid payment status.' });
     const rows = await query(
-      `SELECT o.id,o.public_id,o.product_id,o.customer_name,o.company,o.email,o.phone,o.total_paise,o.status,o.created_at,o.payment_method,o.payment_reference,o.payment_notes,o.paid_at,p.name AS product_name,p.forum,COUNT(DISTINCT oa.id) AS attendee_count,COUNT(DISTINCT dp.id) AS pass_count FROM commerce_orders o JOIN commerce_products p ON p.id=o.product_id LEFT JOIN order_attendees oa ON oa.order_id=o.id LEFT JOIN digital_passes dp ON dp.order_id=o.id WHERE o.archived_at IS NULL GROUP BY o.id ORDER BY o.created_at DESC LIMIT 200`,
+      `SELECT o.id,o.public_id,o.product_id,o.customer_name,o.company,o.email,o.phone,o.total_paise,o.status,o.created_at,o.payment_method,o.payment_reference,o.payment_notes,o.paid_at,p.name AS product_name,p.forum,COUNT(DISTINCT oa.id) AS attendee_count,COUNT(DISTINCT dp.id) AS pass_count FROM commerce_orders o JOIN commerce_products p ON p.id=o.product_id LEFT JOIN order_attendees oa ON oa.order_id=o.id LEFT JOIN digital_passes dp ON dp.order_id=o.id WHERE o.archived_at IS NULL ${status ? 'AND o.status=?' : ''} GROUP BY o.id ORDER BY o.created_at DESC LIMIT 200`,
+      status ? [status] : [],
     );
     res.json(rows);
   } catch (error) {

@@ -2,6 +2,10 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
 import AwardInvitationAdmin from '../components/AwardInvitationAdmin.jsx';
+import PaymentStatusFilter, {
+  paymentStatusLabel,
+  usePaymentStatusFilter,
+} from '../components/admin/PaymentStatusFilter.jsx';
 import ImageUploadField from '../components/admin/ImageUploadField.jsx';
 import DocumentUploadField from '../components/admin/DocumentUploadField.jsx';
 import AdminCheckIn from '../components/admin/AdminCheckIn.jsx';
@@ -309,6 +313,8 @@ export default function AdminPanel() {
     applications: [],
   });
   const [felicitation, setFelicitation] = useState({ hero_youtube_url: '' });
+  const registrationFilter = usePaymentStatusFilter('registrations', section, registrations);
+  const awardFilter = usePaymentStatusFilter('awards', section, awards.applications);
   const [newArticleBody, setNewArticleBody] = useState('');
   const [showArticleCreate, setShowArticleCreate] = useState(false);
   const [editingArticleId, setEditingArticleId] = useState(null);
@@ -438,6 +444,7 @@ export default function AdminPanel() {
                 )}
               </>
             )}
+            <PaymentStatusFilter kind="registrations" filter={registrationFilter} />
             <div className="table-wrap">
               <table>
                 <thead>
@@ -452,7 +459,7 @@ export default function AdminPanel() {
                   </tr>
                 </thead>
                 <tbody>
-                  {registrations.map((row) => (
+                  {registrationFilter.rows.map((row) => (
                     <tr key={row.id}>
                       <td>{new Date(row.created_at).toLocaleString()}</td>
                       <td>
@@ -468,7 +475,7 @@ export default function AdminPanel() {
                         {row.attendee_count} / {row.pass_count} issued
                       </td>
                       <td>
-                        {row.status}
+                        {paymentStatusLabel(row.status)}
                         {row.payment_method && (
                           <>
                             <br />
@@ -1697,7 +1704,8 @@ export default function AdminPanel() {
                 onCreated={async () => setAwards(await api('/admin/awards'))}
               />
             )}
-            {awards.applications?.length ? (
+            <PaymentStatusFilter kind="awards" filter={awardFilter} />
+            {awardFilter.rows.length ? (
               <div className="table-wrap">
                 <table>
                   <thead>
@@ -1712,7 +1720,7 @@ export default function AdminPanel() {
                     </tr>
                   </thead>
                   <tbody>
-                    {awards.applications.map((row) => (
+                    {awardFilter.rows.map((row) => (
                       <tr key={row.public_id}>
                         <td>{new Date(row.created_at).toLocaleString()}</td>
                         <td>{row.event_year}</td>
@@ -1729,7 +1737,7 @@ export default function AdminPanel() {
                           ).join(', ')}
                         </td>
                         <td>
-                          {row.status}
+                          {paymentStatusLabel(row.payment_status || row.status)}
                           {row.payment_method && (
                             <small>
                               <br />
@@ -1760,7 +1768,7 @@ export default function AdminPanel() {
                 </table>
               </div>
             ) : (
-              <p>No award registrations yet.</p>
+              !awardFilter.status && <p>No award registrations yet.</p>
             )}
           </section>
         )}
