@@ -9,6 +9,7 @@ import PaymentStatusFilter, {
 import ImageUploadField from '../components/admin/ImageUploadField.jsx';
 import SpeakerManager from '../components/admin/SpeakerManager.jsx';
 import AwardsEditorPopup from '../components/admin/AwardsEditorPopup.jsx';
+import DetailsPopup from '../components/admin/DetailsPopup.jsx';
 import AwardRegistrations from '../components/admin/AwardRegistrations.jsx';
 import DocumentUploadField from '../components/admin/DocumentUploadField.jsx';
 import AdminCheckIn from '../components/admin/AdminCheckIn.jsx';
@@ -309,7 +310,6 @@ export default function AdminPanel() {
   const [registrations, setRegistrations] = useState([]);
   const [speakerYearFilter, setSpeakerYearFilter] = useState('');
   useEffect(() => setSpeakerYearFilter(''), [forum]);
-  const [showManualRegistration, setShowManualRegistration] = useState(false);
   const [eventStaff, setEventStaff] = useState([]);
   const [highlights, setHighlights] = useState([]),
     [testimonials, setTestimonials] = useState([]);
@@ -434,112 +434,114 @@ export default function AdminPanel() {
               Administrators can confirm an offline payment here.
             </p>
             {role === 'administrator' && (
-              <>
-                <button
-                  type="button"
-                  className="button small"
-                  onClick={() => setShowManualRegistration(!showManualRegistration)}
-                >
-                  {showManualRegistration ? 'Close manual registration' : 'Add manual / NEFT registration'}
-                </button>
-                {showManualRegistration && (
-                  <ManualRegistrationForm
-                    onCreated={async () => setRegistrations(await api('/admin/registrations'))}
-                  />
-                )}
-              </>
+              <AwardsEditorPopup title="Add manual / NEFT registration" actionsOnly>
+                <ManualRegistrationForm
+                  onCreated={async () => setRegistrations(await api('/admin/registrations'))}
+                />
+              </AwardsEditorPopup>
             )}
             <PaymentStatusFilter kind="registrations" filter={registrationFilter} />
             <div className="table-wrap">
               <table>
                 <thead>
                   <tr>
-                    <th>Date</th>
-                    <th>Customer</th>
+                    <th>Name</th>
+                    <th>Company</th>
                     <th>Pass</th>
-                    <th>Total</th>
-                    <th>Attendees</th>
+                    <th>Amount</th>
                     <th>Status</th>
-                    <th></th>
+                    <th>Details</th>
                   </tr>
                 </thead>
                 <tbody>
                   {registrationFilter.rows.map((row) => (
                     <tr key={row.id}>
-                      <td>{new Date(row.created_at).toLocaleString()}</td>
                       <td>
-                        {row.customer_name}
-                        <br />
-                        <small>
-                          {row.company} · {row.email}
-                        </small>
+                        <button
+                          type="button"
+                          className="award-registration-name"
+                          onClick={() => document.getElementById(`registration-dialog-${row.id}`).showModal()}
+                        >
+                          {row.customer_name}
+                        </button>
                       </td>
+                      <td>{row.company}</td>
                       <td>{row.product_name}</td>
                       <td>₹{(Number(row.total_paise) / 100).toLocaleString('en-IN')}</td>
+                      <td>{paymentStatusLabel(row.status)}</td>
                       <td>
-                        {row.attendee_count} / {row.pass_count} issued
-                      </td>
-                      <td>
-                        {paymentStatusLabel(row.status)}
-                        {row.payment_method && (
-                          <>
-                            <br />
-                            <small>
-                              {row.payment_method.toUpperCase()} · {row.payment_reference}
-                              <br />
-                              {row.paid_at && new Date(row.paid_at).toLocaleString('en-IN')}
-                              {row.payment_notes && (
-                                <>
-                                  <br />
-                                  {row.payment_notes}
-                                </>
-                              )}
-                            </small>
-                          </>
-                        )}
-                      </td>
-                      <td>
-                        <RegistrationPasses orderId={row.id} notify={notify} />
-                        {role === 'administrator' && row.status !== 'paid' && (
-                          <DeleteUnpaidDuplicate
-                            kind="registrations"
-                            row={row}
-                            paidRows={registrations}
-                            notify={notify}
-                            onDeleted={async () => setRegistrations(await api('/admin/registrations'))}
-                          />
-                        )}
-                        {row.status !== 'paid' ||
-                        (Number(row.pass_count) === 0 && Number(row.attendee_count) > 0) ? (
-                          <button
-                            className="button small"
-                            disabled={role !== 'administrator'}
-                            onClick={async () => {
-                              await api(`/admin/registrations/${row.id}/mark-paid`, { method: 'POST' });
-                              setRegistrations(await api('/admin/registrations'));
-                              notify('Payment confirmed and passes issued.');
-                            }}
-                          >
-                            Mark paid
-                          </button>
-                        ) : (
-                          Number(row.pass_count) > 0 && (
+                        <DetailsPopup
+                          id={`registration-dialog-${row.id}`}
+                          title={`Registration: ${row.customer_name}`}
+                        >
+                          <dl className="award-registration-details">
+                            {[
+                              ['Name', row.customer_name],
+                              ['Company', row.company],
+                              ['Email', row.email],
+                              ['Mobile', row.phone],
+                              ['Reference', row.public_id],
+                              ['Registered', new Date(row.created_at).toLocaleString()],
+                              ['Pass', row.product_name],
+                              ['Amount', `₹${(Number(row.total_paise) / 100).toLocaleString('en-IN')}`],
+                              ['Attendees / passes issued', `${row.attendee_count} / ${row.pass_count}`],
+                              ['Status', paymentStatusLabel(row.status)],
+                              ['Payment method', row.payment_method],
+                              ['Payment reference', row.payment_reference],
+                              ['Paid at', row.paid_at ? new Date(row.paid_at).toLocaleString() : '—'],
+                              ['Payment notes', row.payment_notes],
+                            ].map(([label, value]) => (
+                              <div key={label}>
+                                <dt>{label}</dt>
+                                <dd>{value || '—'}</dd>
+                              </div>
+                            ))}
+                          </dl>
+
+                          <RegistrationPasses orderId={row.id} notify={notify} />
+                          {role === 'administrator' && row.status !== 'paid' && (
+                            <DeleteUnpaidDuplicate
+                              kind="registrations"
+                              row={row}
+                              paidRows={registrations}
+                              notify={notify}
+                              onDeleted={async () => setRegistrations(await api('/admin/registrations'))}
+                            />
+                          )}
+                          {row.status !== 'paid' ||
+                          (Number(row.pass_count) === 0 && Number(row.attendee_count) > 0) ? (
                             <button
-                              className="button small secondary"
+                              className="button small"
                               disabled={role !== 'administrator'}
                               onClick={async () => {
-                                try {
-                                  await api(`/admin/registrations/${row.id}/send-passes`, { method: 'POST' });
-                                  notify('Pass email queued. Delivery depends on the email provider.');
-                                } catch (error) {
-                                  notify(error.message);
-                                }
+                                await api(`/admin/registrations/${row.id}/mark-paid`, { method: 'POST' });
+                                setRegistrations(await api('/admin/registrations'));
+                                notify('Payment confirmed and passes issued.');
                               }}
                             >
-                              Email passes
+                              Mark paid
                             </button>
-                          )
-                        )}
+                          ) : (
+                            Number(row.pass_count) > 0 && (
+                              <button
+                                className="button small secondary"
+                                disabled={role !== 'administrator'}
+                                onClick={async () => {
+                                  try {
+                                    await api(`/admin/registrations/${row.id}/send-passes`, {
+                                      method: 'POST',
+                                    });
+                                    notify('Pass email queued. Delivery depends on the email provider.');
+                                  } catch (error) {
+                                    notify(error.message);
+                                  }
+                                }}
+                              >
+                                Email passes
+                              </button>
+                            )
+                          )}
+                        </DetailsPopup>
                       </td>
                     </tr>
                   ))}
@@ -1002,58 +1004,71 @@ export default function AdminPanel() {
             <p>
               Upload gallery images directly here. The website stores the generated media path automatically.
             </p>
-            <form
-              className="admin-card"
-              onSubmit={async (e) => {
-                e.preventDefault();
-                const form = e.currentTarget;
-                await api(`/admin/forums/${forum}/gallery`, {
-                  method: 'POST',
-                  body: JSON.stringify(Object.fromEntries(new FormData(form))),
-                });
-                form.reset();
-                await reloadForum();
-                notify('Gallery image added.');
-              }}
-            >
-              <ImageUploadField
-                label="Gallery image"
-                name="image_url"
-                required
-                altText="Previous event glimpse"
-              />
-              <label>
-                Alt text
-                <input name="image_alt" required />
-              </label>
-              <label>
-                Event year
-                <input
-                  name="event_year"
-                  type="number"
-                  min="2000"
-                  max="2100"
-                  defaultValue={new Date().getFullYear()}
+            <AwardsEditorPopup key={forum} title="Add gallery image" actionsOnly>
+              <form
+                className="admin-card"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const form = e.currentTarget;
+                  await api(`/admin/forums/${forum}/gallery`, {
+                    method: 'POST',
+                    body: JSON.stringify(Object.fromEntries(new FormData(form))),
+                  });
+                  form.reset();
+                  await reloadForum();
+                  notify('Gallery image added.');
+                }}
+              >
+                <ImageUploadField
+                  label="Gallery image"
+                  name="image_url"
                   required
+                  altText="Previous event glimpse"
                 />
-              </label>
-              <label>
-                Target URL
-                <input
-                  name="target_url"
-                  key={forum}
-                  defaultValue={
-                    forum === 'south'
-                      ? '/previous-edition-highlights-south/'
-                      : '/previous-edition-highlights/'
-                  }
-                />
-              </label>
-              <button className="button small">Add image</button>
-            </form>
+                <label>
+                  Alt text
+                  <input name="image_alt" required />
+                </label>
+                <label>
+                  Event year
+                  <input
+                    name="event_year"
+                    type="number"
+                    min="2000"
+                    max="2100"
+                    defaultValue={new Date().getFullYear()}
+                    required
+                  />
+                </label>
+                <label>
+                  Target URL
+                  <input
+                    name="target_url"
+                    key={forum}
+                    defaultValue={
+                      forum === 'south'
+                        ? '/previous-edition-highlights-south/'
+                        : '/previous-edition-highlights/'
+                    }
+                  />
+                </label>
+                <button className="button small">Add image</button>
+              </form>
+            </AwardsEditorPopup>
             <div className="admin-list">
               {content.gallery.map((item, index) => (
-                <article className="admin-card" key={item.id}>
+                <AwardsEditorPopup
+                  key={item.id}
+                  title={item.image_alt || 'Untitled'}
+                  preview={<img src={item.image_url} alt={item.image_alt || 'Gallery image'} />}
+                  snapshot={content}
+                  restore={(original) => setContent(original)}
+                  save={async () => {
+                    await api(`/admin/gallery/${item.id}`, { method: 'PUT', body: JSON.stringify(item) });
+                    await reloadForum();
+                    notify('Changes saved.');
+                  }}
+                >
                   {[
                     ['Alt text', 'image_alt'],
                     ['Event year', 'event_year', 'number'],
@@ -1082,17 +1097,7 @@ export default function AdminPanel() {
                     />{' '}
                     Visible
                   </label>
-                  <button
-                    className="button small"
-                    onClick={async () => {
-                      await api(`/admin/gallery/${item.id}`, { method: 'PUT', body: JSON.stringify(item) });
-                      await reloadForum();
-                      notify('Gallery image saved.');
-                    }}
-                  >
-                    Save image
-                  </button>
-                </article>
+                </AwardsEditorPopup>
               ))}
             </div>
           </section>
@@ -1225,41 +1230,62 @@ export default function AdminPanel() {
           <section>
             <ForumPicker forum={forum} setForum={setForum} />
             <p>Add and edit testimonials displayed on the {forum} Exhibition page.</p>
-            <form
-              className="admin-card"
-              onSubmit={async (e) => {
-                e.preventDefault();
-                const form = e.currentTarget;
-                const body = { ...Object.fromEntries(new FormData(form)), forum };
-                await api('/admin/testimonials', { method: 'POST', body: JSON.stringify(body) });
-                form.reset();
-                setTestimonials(await api(`/admin/testimonials?forum=${forum}`));
-                notify('Testimonial added.');
-              }}
-            >
-              <h2>Add testimonial</h2>
-              <label>
-                Testimonial quote
-                <textarea name="quote" required />
-              </label>
-              <label>
-                Name
-                <input name="name" required />
-              </label>
-              <label>
-                Role / company
-                <input name="role" />
-              </label>
-              <ImageUploadField label="Person photo" name="image_url" altText="Testimonial portrait" />
-              <label>
-                Order
-                <input name="sort_order" type="number" defaultValue="0" />
-              </label>
-              <button className="button small">Add testimonial</button>
-            </form>
+            <AwardsEditorPopup key={forum} title="Add testimonial" actionsOnly>
+              <form
+                className="admin-card"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const form = e.currentTarget;
+                  const body = { ...Object.fromEntries(new FormData(form)), forum };
+                  await api('/admin/testimonials', { method: 'POST', body: JSON.stringify(body) });
+                  form.reset();
+                  setTestimonials(await api(`/admin/testimonials?forum=${forum}`));
+                  notify('Testimonial added.');
+                }}
+              >
+                <h2>Add testimonial</h2>
+                <label>
+                  Testimonial quote
+                  <textarea name="quote" required />
+                </label>
+                <label>
+                  Name
+                  <input name="name" required />
+                </label>
+                <label>
+                  Role / company
+                  <input name="role" />
+                </label>
+                <ImageUploadField label="Person photo" name="image_url" altText="Testimonial portrait" />
+                <label>
+                  Order
+                  <input name="sort_order" type="number" defaultValue="0" />
+                </label>
+                <button className="button small">Add testimonial</button>
+              </form>
+            </AwardsEditorPopup>
             <div className="admin-list">
               {testimonials.map((item, index) => (
-                <article className="admin-card" key={item.id}>
+                <AwardsEditorPopup
+                  key={item.id}
+                  title={item.name || 'Untitled'}
+                  preview={
+                    <>
+                      <img src={item.image_url} alt={item.name} />
+                      <p>{item.quote}</p>
+                    </>
+                  }
+                  snapshot={testimonials}
+                  restore={(original) => setTestimonials(original)}
+                  save={async () => {
+                    await api(`/admin/testimonials/${item.id}`, {
+                      method: 'PUT',
+                      body: JSON.stringify(item),
+                    });
+                    setTestimonials(await api(`/admin/testimonials?forum=${forum}`));
+                    notify('Changes saved.');
+                  }}
+                >
                   {[
                     ['Testimonial quote', 'quote', 'textarea'],
                     ['Name', 'name'],
@@ -1302,20 +1328,7 @@ export default function AdminPanel() {
                     />{' '}
                     Visible
                   </label>
-                  <button
-                    className="button small"
-                    onClick={async () => {
-                      await api(`/admin/testimonials/${item.id}`, {
-                        method: 'PUT',
-                        body: JSON.stringify(item),
-                      });
-                      setTestimonials(await api(`/admin/testimonials?forum=${forum}`));
-                      notify('Testimonial saved.');
-                    }}
-                  >
-                    Save testimonial
-                  </button>
-                </article>
+                </AwardsEditorPopup>
               ))}
             </div>
           </section>
@@ -1353,75 +1366,111 @@ export default function AdminPanel() {
                 </button>
               </article>
             )}
-            <form
-              className="admin-card"
-              onSubmit={async (e) => {
-                e.preventDefault();
-                if (complimentaryBusy) return;
-                const form = e.currentTarget;
-                const body = JSON.stringify(Object.fromEntries(new FormData(form)));
-                setComplimentaryBusy(true);
-                try {
-                  const result = await api('/admin/products', { method: 'POST', body });
-                  setComplimentaryLink(result.checkoutUrl);
-                  form.reset();
-                  notify('Complimentary pass created. Copy the secure link now.');
+            <AwardsEditorPopup key={forum} title="Create complimentary pass" actionsOnly>
+              {complimentaryLink && (
+                <p role="status">
+                  Copy the new private invitation link:{' '}
+                  <code style={{ overflowWrap: 'anywhere' }}>
+                    {window.location.origin}
+                    {complimentaryLink}
+                  </code>
+                </p>
+              )}
+              <form
+                className="admin-card"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (complimentaryBusy) return;
+                  const form = e.currentTarget;
+                  const body = JSON.stringify(Object.fromEntries(new FormData(form)));
+                  setComplimentaryBusy(true);
                   try {
-                    setProducts(await api('/admin/products'));
-                  } catch {
-                    notify('Pass created. Copy the link now; the list could not refresh.');
+                    const result = await api('/admin/products', { method: 'POST', body });
+                    setComplimentaryLink(result.checkoutUrl);
+                    form.reset();
+                    notify('Complimentary pass created. Copy the secure link now.');
+                    try {
+                      setProducts(await api('/admin/products'));
+                    } catch {
+                      notify('Pass created. Copy the link now; the list could not refresh.');
+                    }
+                  } catch (error) {
+                    notify(error.message);
+                  } finally {
+                    setComplimentaryBusy(false);
                   }
-                } catch (error) {
-                  notify(error.message);
-                } finally {
-                  setComplimentaryBusy(false);
-                }
-              }}
-            >
-              <h2>Create complimentary pass</h2>
-              <p>Create a free, controlled allocation for an exhibitor to share with clients.</p>
-              <label>
-                Forum
-                <select name="forum" required>
-                  <option value="india">India Forum</option>
-                  <option value="south">South Forum</option>
-                </select>
-              </label>
-              <label>
-                Pass name
-                <input name="name" placeholder="Exhibitor Complimentary Pass" required />
-              </label>
-              <label>
-                Unique code
-                <input name="code" placeholder="exhibitor-name-complimentary" required />
-              </label>
-              <label>
-                Description
-                <textarea name="description" />
-              </label>
-              <label>
-                People included per pass
-                <input name="member_count" type="number" min="1" defaultValue="1" />
-              </label>
-              <label>
-                Maximum redemptions
-                <input name="redemption_limit" type="number" min="1" defaultValue="10" required />
-              </label>
-              <label>
-                Link expiry
-                <input name="expires_at" type="datetime-local" required />
-              </label>
-              <label>
-                Order
-                <input name="sort_order" type="number" defaultValue="10" />
-              </label>
-              <button className="button small" disabled={role !== 'administrator' || complimentaryBusy}>
-                {complimentaryBusy ? 'Saving…' : 'Create free pass'}
-              </button>
-            </form>
+                }}
+              >
+                <h2>Create complimentary pass</h2>
+                <p>Create a free, controlled allocation for an exhibitor to share with clients.</p>
+                <label>
+                  Forum
+                  <select name="forum" required>
+                    <option value="india">India Forum</option>
+                    <option value="south">South Forum</option>
+                  </select>
+                </label>
+                <label>
+                  Pass name
+                  <input name="name" placeholder="Exhibitor Complimentary Pass" required />
+                </label>
+                <label>
+                  Unique code
+                  <input name="code" placeholder="exhibitor-name-complimentary" required />
+                </label>
+                <label>
+                  Description
+                  <textarea name="description" />
+                </label>
+                <label>
+                  People included per pass
+                  <input name="member_count" type="number" min="1" defaultValue="1" />
+                </label>
+                <label>
+                  Maximum redemptions
+                  <input name="redemption_limit" type="number" min="1" defaultValue="10" required />
+                </label>
+                <label>
+                  Link expiry
+                  <input name="expires_at" type="datetime-local" required />
+                </label>
+                <label>
+                  Order
+                  <input name="sort_order" type="number" defaultValue="10" />
+                </label>
+                <button className="button small" disabled={role !== 'administrator' || complimentaryBusy}>
+                  {complimentaryBusy ? 'Saving…' : 'Create free pass'}
+                </button>
+              </form>
+            </AwardsEditorPopup>
             <div className="admin-list">
               {products.map((p, index) => (
-                <article className="admin-card" key={p.id}>
+                <AwardsEditorPopup
+                  key={p.id}
+                  title={p.name || 'Untitled'}
+                  preview={
+                    <p>
+                      {p.forum} · ₹{(Number(p.sale_price_paise) / 100).toLocaleString('en-IN')} ·{' '}
+                      {p.is_active ? 'Active' : 'Inactive'}
+                    </p>
+                  }
+                  snapshot={products}
+                  restore={(original) => setProducts(original)}
+                  save={async () => {
+                    await api(`/admin/products/${p.id}`, { method: 'PUT', body: JSON.stringify(p) });
+                    setProducts(await api('/admin/products'));
+                    notify('Changes saved.');
+                  }}
+                >
+                  {complimentaryLink && (
+                    <p role="status">
+                      Copy the new private invitation link:{' '}
+                      <code style={{ overflowWrap: 'anywhere' }}>
+                        {window.location.origin}
+                        {complimentaryLink}
+                      </code>
+                    </p>
+                  )}
                   <h3>
                     {p.forum}: {p.code}
                   </h3>
@@ -1501,18 +1550,7 @@ export default function AdminPanel() {
                     />{' '}
                     Active
                   </label>
-                  <button
-                    className="button small"
-                    disabled={role !== 'administrator'}
-                    onClick={async () => {
-                      await api(`/admin/products/${p.id}`, { method: 'PUT', body: JSON.stringify(p) });
-                      setProducts(await api('/admin/products'));
-                      notify('Pass saved.');
-                    }}
-                  >
-                    Save pass
-                  </button>
-                </article>
+                </AwardsEditorPopup>
               ))}
             </div>
           </section>
@@ -1521,18 +1559,23 @@ export default function AdminPanel() {
         {section === 'awards' && (
           <section>
             <p>
-              Click the image or a section heading to edit in a popup. Save changes in the popup,
-              or cancel to discard them.
+              Click the image or a section heading to edit in a popup. Save changes in the popup, or cancel to
+              discard them.
             </p>
-            <AwardsEditorPopup title="Awards page settings"
+            <AwardsEditorPopup
+              title="Awards page settings"
               preview={<img src={awardsAssets(awards.content).introImageUrl} alt="Awards introduction" />}
               snapshot={awards.content}
               restore={(content) => setAwards((current) => ({ ...current, content }))}
               save={async () => {
-                await api('/admin/awards', { method: 'PUT', body: JSON.stringify({ content: awards.content }) });
+                await api('/admin/awards', {
+                  method: 'PUT',
+                  body: JSON.stringify({ content: awards.content }),
+                });
                 setAwards(await api('/admin/awards'));
                 notify('Awards page saved.');
-              }}>
+              }}
+            >
               <Input
                 label="Hero YouTube URL"
                 value={awards.content.heroYoutubeUrl}
@@ -1603,9 +1646,14 @@ export default function AdminPanel() {
             </AwardsEditorPopup>
             <div className="admin-list">
               {awards.content.accordions?.map((item, index) => (
-                <AwardsEditorPopup key={`${item.key}-${index}`} title={item.title || 'Untitled section'}
+                <AwardsEditorPopup
+                  key={`${item.key}-${index}`}
+                  title={item.title || 'Untitled section'}
                   remove={async () => {
-                    const content = { ...awards.content, accordions: awards.content.accordions.filter((_, i) => i !== index) };
+                    const content = {
+                      ...awards.content,
+                      accordions: awards.content.accordions.filter((_, i) => i !== index),
+                    };
                     await api('/admin/awards', { method: 'PUT', body: JSON.stringify({ content }) });
                     setAwards(await api('/admin/awards'));
                     notify('Awards section removed.');
@@ -1613,10 +1661,14 @@ export default function AdminPanel() {
                   snapshot={awards.content}
                   restore={(content) => setAwards((current) => ({ ...current, content }))}
                   save={async () => {
-                    await api('/admin/awards', { method: 'PUT', body: JSON.stringify({ content: awards.content }) });
+                    await api('/admin/awards', {
+                      method: 'PUT',
+                      body: JSON.stringify({ content: awards.content }),
+                    });
                     setAwards(await api('/admin/awards'));
                     notify('Awards page saved.');
-                  }}>
+                  }}
+                >
                   <Input
                     label="Accordion title"
                     value={item.title}
@@ -1652,7 +1704,6 @@ export default function AdminPanel() {
                     value={item}
                     onChange={(next) => updateAwardAccordion(index, next)}
                   />
-
                 </AwardsEditorPopup>
               ))}
             </div>
@@ -1701,8 +1752,13 @@ export default function AdminPanel() {
             )}
             <PaymentStatusFilter kind="awards" filter={awardFilter} />
             {awardFilter.rows.length ? (
-              <AwardRegistrations rows={awardFilter.rows} applications={awards.applications || []}
-                role={role} notify={notify} reload={async () => setAwards(await api('/admin/awards'))} />
+              <AwardRegistrations
+                rows={awardFilter.rows}
+                applications={awards.applications || []}
+                role={role}
+                notify={notify}
+                reload={async () => setAwards(await api('/admin/awards'))}
+              />
             ) : (
               !awardFilter.status && <p>No award registrations yet.</p>
             )}

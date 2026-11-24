@@ -104,6 +104,7 @@ export function createApp() {
   app.use('/api/admin', adminRouter);
   app.use('/media', express.static(path.resolve(config.uploadDir), { maxAge: '7d', immutable: false }));
   app.use('/assets', express.static(path.join(clientDist, 'assets'), { maxAge: '1y', immutable: true }));
+  app.get(['/favicon.png', '/favicon.ico'], (req, res) => res.sendFile('favicon.png', { root: clientDist }));
   app.use(
     '/reference',
     express.static(path.join(clientDist, 'reference'), { maxAge: '30d', immutable: false }),
