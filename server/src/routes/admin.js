@@ -368,7 +368,12 @@ adminRouter.get('/awards', requireAdmin, async (req, res, next) => {
       "CASE WHEN aa.status='cancelled' THEN aa.status WHEN latest.status IN ('paid','refunded') THEN latest.status WHEN aa.status='paid' THEN aa.status ELSE COALESCE(latest.status,aa.status) END";
     const applications = await query(
       `SELECT aa.*,${paymentStatus} AS payment_status,
-              o.payment_method,o.payment_reference,o.total_paise,o.discount_percent,o.discount_paise,o.discount_reason
+              COALESCE(o.payment_method,latest.payment_method) AS payment_method,
+              COALESCE(o.payment_reference,latest.payment_reference) AS payment_reference,
+              COALESCE(o.total_paise,latest.total_paise) AS total_paise,
+              COALESCE(o.discount_percent,latest.discount_percent) AS discount_percent,
+              COALESCE(o.discount_paise,latest.discount_paise) AS discount_paise,
+              COALESCE(o.discount_reason,latest.discount_reason) AS discount_reason
        FROM award_applications aa
        LEFT JOIN commerce_orders o ON o.id=(SELECT MAX(co.id) FROM commerce_orders co WHERE co.award_application_id=aa.id AND co.status='paid')
        LEFT JOIN commerce_orders latest ON latest.id=(

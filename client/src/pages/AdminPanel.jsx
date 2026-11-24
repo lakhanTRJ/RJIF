@@ -8,6 +8,8 @@ import PaymentStatusFilter, {
 } from '../components/admin/PaymentStatusFilter.jsx';
 import ImageUploadField from '../components/admin/ImageUploadField.jsx';
 import SpeakerManager from '../components/admin/SpeakerManager.jsx';
+import AwardsEditorPopup from '../components/admin/AwardsEditorPopup.jsx';
+import AwardRegistrations from '../components/admin/AwardRegistrations.jsx';
 import DocumentUploadField from '../components/admin/DocumentUploadField.jsx';
 import AdminCheckIn from '../components/admin/AdminCheckIn.jsx';
 import AdminNavigation from '../components/admin/AdminNavigation.jsx';
@@ -1519,10 +1521,18 @@ export default function AdminPanel() {
         {section === 'awards' && (
           <section>
             <p>
-              Edit the video, partner identity and accordion content using normal fields. Add headings,
-              descriptions and optional links without editing JSON.
+              Click the image or a section heading to edit in a popup. Save changes in the popup,
+              or cancel to discard them.
             </p>
-            <article className="admin-card">
+            <AwardsEditorPopup title="Awards page settings"
+              preview={<img src={awardsAssets(awards.content).introImageUrl} alt="Awards introduction" />}
+              snapshot={awards.content}
+              restore={(content) => setAwards((current) => ({ ...current, content }))}
+              save={async () => {
+                await api('/admin/awards', { method: 'PUT', body: JSON.stringify({ content: awards.content }) });
+                setAwards(await api('/admin/awards'));
+                notify('Awards page saved.');
+              }}>
               <Input
                 label="Hero YouTube URL"
                 value={awards.content.heroYoutubeUrl}
@@ -1590,10 +1600,23 @@ export default function AdminPanel() {
                 }
                 altText="Business Excellence Awards partner logo"
               />
-            </article>
+            </AwardsEditorPopup>
             <div className="admin-list">
               {awards.content.accordions?.map((item, index) => (
-                <article className="admin-card" key={`${item.key}-${index}`}>
+                <AwardsEditorPopup key={`${item.key}-${index}`} title={item.title || 'Untitled section'}
+                  remove={async () => {
+                    const content = { ...awards.content, accordions: awards.content.accordions.filter((_, i) => i !== index) };
+                    await api('/admin/awards', { method: 'PUT', body: JSON.stringify({ content }) });
+                    setAwards(await api('/admin/awards'));
+                    notify('Awards section removed.');
+                  }}
+                  snapshot={awards.content}
+                  restore={(content) => setAwards((current) => ({ ...current, content }))}
+                  save={async () => {
+                    await api('/admin/awards', { method: 'PUT', body: JSON.stringify({ content: awards.content }) });
+                    setAwards(await api('/admin/awards'));
+                    notify('Awards page saved.');
+                  }}>
                   <Input
                     label="Accordion title"
                     value={item.title}
@@ -1629,21 +1652,8 @@ export default function AdminPanel() {
                     value={item}
                     onChange={(next) => updateAwardAccordion(index, next)}
                   />
-                  <button
-                    className="button small"
-                    onClick={() =>
-                      setAwards({
-                        ...awards,
-                        content: {
-                          ...awards.content,
-                          accordions: awards.content.accordions.filter((_, i) => i !== index),
-                        },
-                      })
-                    }
-                  >
-                    Remove accordion
-                  </button>
-                </article>
+
+                </AwardsEditorPopup>
               ))}
             </div>
             <button
@@ -1691,67 +1701,8 @@ export default function AdminPanel() {
             )}
             <PaymentStatusFilter kind="awards" filter={awardFilter} />
             {awardFilter.rows.length ? (
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Event year</th>
-                      <th>Name</th>
-                      <th>Company</th>
-                      <th>Categories</th>
-                      <th>Status</th>
-                      <th>Duplicate cleanup</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {awardFilter.rows.map((row) => (
-                      <tr key={row.public_id}>
-                        <td>{new Date(row.created_at).toLocaleString()}</td>
-                        <td>{row.event_year}</td>
-                        <td>
-                          {row.full_name}
-                          <br />
-                          <small>{row.email}</small>
-                        </td>
-                        <td>{row.company}</td>
-                        <td>
-                          {(typeof row.categories === 'string'
-                            ? JSON.parse(row.categories)
-                            : row.categories
-                          ).join(', ')}
-                        </td>
-                        <td>
-                          {paymentStatusLabel(row.payment_status || row.status)}
-                          {row.payment_method && (
-                            <small>
-                              <br />
-                              {row.payment_method.toUpperCase()} · {row.payment_reference}
-                              <br />
-                              Paid ₹{(Number(row.total_paise) / 100).toFixed(2)}
-                              <br />
-                              Discount {row.discount_percent}% (₹
-                              {(Number(row.discount_paise) / 100).toFixed(2)})<br />
-                              {row.discount_reason}
-                            </small>
-                          )}
-                        </td>
-                        <td>
-                          {role === 'administrator' && row.status !== 'paid' && (
-                            <DeleteUnpaidDuplicate
-                              kind="awards"
-                              row={row}
-                              paidRows={awards.applications || []}
-                              notify={notify}
-                              onDeleted={async () => setAwards(await api('/admin/awards'))}
-                            />
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <AwardRegistrations rows={awardFilter.rows} applications={awards.applications || []}
+                role={role} notify={notify} reload={async () => setAwards(await api('/admin/awards'))} />
             ) : (
               !awardFilter.status && <p>No award registrations yet.</p>
             )}
