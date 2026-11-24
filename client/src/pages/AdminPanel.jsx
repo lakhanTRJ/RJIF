@@ -7,6 +7,7 @@ import PaymentStatusFilter, {
   usePaymentStatusFilter,
 } from '../components/admin/PaymentStatusFilter.jsx';
 import ImageUploadField from '../components/admin/ImageUploadField.jsx';
+import SpeakerManager from '../components/admin/SpeakerManager.jsx';
 import DocumentUploadField from '../components/admin/DocumentUploadField.jsx';
 import AdminCheckIn from '../components/admin/AdminCheckIn.jsx';
 import AdminNavigation from '../components/admin/AdminNavigation.jsx';
@@ -900,107 +901,17 @@ export default function AdminPanel() {
                   ))}
               </select>
             </label>
-            <form
-              className="admin-card"
-              onSubmit={async (e) => {
-                e.preventDefault();
-                const form = e.currentTarget;
-                const body = Object.fromEntries(new FormData(form));
-                body.is_featured = Boolean(body.is_featured);
-                await api(`/admin/forums/${forum}/speakers`, { method: 'POST', body: JSON.stringify(body) });
-                form.reset();
-                await reloadForum();
-                notify('Speaker added.');
-              }}
-            >
-              <h2>Add speaker</h2>
-              <label>
-                Name
-                <input name="name" required />
-              </label>
-              <label>
-                Role
-                <input name="role" />
-              </label>
-              <ImageUploadField label="Speaker image" name="image_url" altText="Speaker portrait" />
-              <label>
-                Event year
-                <input
-                  key={`${forum}-${content.settings.speaker_event_year || 2026}`}
-                  name="event_year"
-                  type="number"
-                  min="2000"
-                  max="2100"
-                  required
-                  defaultValue={content.settings.speaker_event_year || 2026}
-                />
-              </label>
-              <label className="check">
-                <input name="is_featured" type="checkbox" value="1" /> Show on homepage
-              </label>
-              <button className="button small">Add speaker</button>
-            </form>
-            <div className="admin-list">
-              {content.speakers
-                .map((speaker, index) => ({ speaker, index }))
-                .filter(
-                  ({ speaker }) =>
-                    !speakerYearFilter || String(speaker.event_year || 'unassigned') === speakerYearFilter,
-                )
-                .map(({ speaker, index }) => (
-                  <article className="admin-card" key={speaker.id}>
-                    {[
-                      ['Name', 'name'],
-                      ['Role', 'role'],
-                      ['Year', 'event_year', 'number'],
-                      ['Order', 'sort_order', 'number'],
-                    ].map(([label, key, type]) => (
-                      <Input
-                        key={key}
-                        label={label}
-                        type={type}
-                        value={speaker[key]}
-                        onChange={(value) => update('speakers', index, { [key]: value })}
-                      />
-                    ))}
-                    <ImageUploadField
-                      label="Speaker image"
-                      value={speaker.image_url}
-                      onChange={(image_url) => update('speakers', index, { image_url })}
-                      altText={speaker.name}
-                    />
-                    <label className="check">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(speaker.is_featured)}
-                        onChange={(e) => update('speakers', index, { is_featured: e.target.checked })}
-                      />{' '}
-                      Show on homepage for this speaker’s event year
-                    </label>
-                    <label className="check">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(speaker.is_published)}
-                        onChange={(e) => update('speakers', index, { is_published: e.target.checked })}
-                      />{' '}
-                      Published
-                    </label>
-                    <button
-                      className="button small"
-                      onClick={async () => {
-                        await api(`/admin/speakers/${speaker.id}`, {
-                          method: 'PUT',
-                          body: JSON.stringify(speaker),
-                        });
-                        await reloadForum();
-                        notify('Speaker saved.');
-                      }}
-                    >
-                      Save speaker
-                    </button>
-                  </article>
-                ))}
-            </div>
+            <SpeakerManager
+              key={forum}
+              forum={forum}
+              eventYear={content.settings.speaker_event_year}
+              speakers={content.speakers.filter(
+                (speaker) =>
+                  !speakerYearFilter || String(speaker.event_year || 'unassigned') === speakerYearFilter,
+              )}
+              onSaved={reloadForum}
+              notify={notify}
+            />
           </section>
         )}
 

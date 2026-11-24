@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api.js';
+import { speakerText } from '../../speakerText.js';
 
 export const A = (path) => `/reference/${path}`;
 export const indiaAgenda = [
@@ -591,16 +592,42 @@ function SpeakerPortrait({ speaker }) {
     );
   return <img src={speaker.image} alt={speaker.name} loading="lazy" onError={() => setFailed(true)} />;
 }
-export function SpeakerGrid({ speakers, limit, portraits = true }) {
+export function SpeakerGrid({ speakers, limit, portraits = true, onEdit }) {
   const visible = limit ? speakers.slice(0, limit) : speakers;
   return (
     <div className={`speaker-grid ${portraits ? '' : 'speaker-grid-text'}`}>
       {visible.map((speaker, index) => (
-        <article className="speaker-card" key={`${speaker.name}-${index}`}>
-          {portraits && <SpeakerPortrait speaker={speaker} />}
+        <article className="speaker-card" key={speaker.id || `${speaker.name}-${index}`}>
+          {portraits &&
+            (onEdit ? (
+              <button
+                className="speaker-edit-portrait"
+                type="button"
+                onClick={() => onEdit(speaker)}
+                aria-label={`Edit ${speakerText(speaker.name)}`}
+              >
+                <SpeakerPortrait speaker={{ ...speaker, name: speakerText(speaker.name) }} />
+              </button>
+            ) : (
+              <SpeakerPortrait speaker={{ ...speaker, name: speakerText(speaker.name) }} />
+            ))}
           <div>
-            <h3>{speaker.name}</h3>
-            <p>{speaker.role}</p>
+            <h3>
+              {onEdit ? (
+                <button className="speaker-edit-name" type="button" onClick={() => onEdit(speaker)}>
+                  {speakerText(speaker.name)}
+                </button>
+              ) : (
+                speakerText(speaker.name)
+              )}
+            </h3>
+            <p>{speakerText(speaker.role)}</p>
+            {onEdit && (
+              <small className="speaker-admin-status">
+                {speaker.event_year || 'Year not set'} · {speaker.is_published ? 'Published' : 'Hidden'}
+                {speaker.is_featured ? ' · Homepage' : ''}
+              </small>
+            )}
           </div>
         </article>
       ))}

@@ -15,6 +15,7 @@ import { saveSubscriber, currentAwardYear, reserveSubscriberBenefit } from '../s
 import { readSubscriberImport } from '../subscriberImport.js';
 import { archiveUnpaidDuplicate, assertGatewayUnpaid } from '../unpaidDuplicates.js';
 import { registrationWorkbook } from '../registrationExports.js';
+import { speakerText } from '../../../client/src/speakerText.js';
 import { mountAwardInvitationAdmin } from '../awardInvitations.js';
 import {
   issueCsrf,
@@ -793,7 +794,7 @@ adminRouter.put('/forums/:forum/settings', requireAdmin, requireCsrf, async (req
 adminRouter.post('/forums/:forum/speakers', requireAdmin, requireCsrf, async (req, res, next) => {
   try {
     const forum = String(req.params.forum);
-    const name = String(req.body.name || '').trim();
+    const name = speakerText(req.body.name).trim();
     if (!['india', 'south'].includes(forum) || !name)
       return res.status(422).json({ error: 'Forum and speaker name are required' });
     const settings = (await query('SELECT speaker_event_year FROM forum_settings WHERE forum=?', [forum]))[0];
@@ -805,7 +806,7 @@ adminRouter.post('/forums/:forum/speakers', requireAdmin, requireCsrf, async (re
       [
         forum,
         name,
-        String(req.body.role || '').slice(0, 1000),
+        speakerText(req.body.role).slice(0, 1000),
         String(req.body.image_url || '').slice(0, 1000) || null,
         eventYear,
         req.body.is_featured ? 1 : 0,
@@ -820,6 +821,8 @@ adminRouter.post('/forums/:forum/speakers', requireAdmin, requireCsrf, async (re
 });
 adminRouter.put('/speakers/:id', requireAdmin, requireCsrf, async (req, res, next) => {
   try {
+    const name = speakerText(req.body.name).trim();
+    if (!name) return res.status(422).json({ error: 'Speaker name is required' });
     const eventYear =
       req.body.event_year === null || req.body.event_year === '' ? null : Number(req.body.event_year);
     if (eventYear !== null && (!Number.isInteger(eventYear) || eventYear < 2000 || eventYear > 2100))
@@ -827,8 +830,8 @@ adminRouter.put('/speakers/:id', requireAdmin, requireCsrf, async (req, res, nex
     await query(
       'UPDATE speakers SET name=?,role=?,image_url=?,event_year=?,is_featured=?,is_published=?,sort_order=? WHERE id=?',
       [
-        String(req.body.name || '').trim(),
-        String(req.body.role || '').slice(0, 1000),
+        name,
+        speakerText(req.body.role).slice(0, 1000),
         String(req.body.image_url || '').slice(0, 1000) || null,
         eventYear,
         req.body.is_featured ? 1 : 0,
