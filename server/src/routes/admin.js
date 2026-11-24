@@ -737,9 +737,23 @@ adminRouter.put('/forums/:forum/settings', requireAdmin, requireCsrf, async (req
           }))
           .filter((item) => item.number && item.label)
       : [];
+    const speakerYear =
+      req.body.speaker_event_year === undefined
+        ? undefined
+        : req.body.speaker_event_year === '' || req.body.speaker_event_year === null
+          ? null
+          : Number(req.body.speaker_event_year);
+    if (
+      speakerYear !== undefined &&
+      speakerYear !== null &&
+      (!Number.isInteger(speakerYear) || speakerYear < 2000 || speakerYear > 2100)
+    )
+      return res.status(422).json({ error: 'Enter a speaker event year between 2000 and 2100.' });
     await query(
-      `UPDATE forum_settings SET speaker_heading=?,hero_youtube_url=?,content_youtube_url=?,event_date=?,event_location=?,overview_stats=?,quote_text=?,quote_banner_url=?,quote_banner_target=?,quote_visible=?,agenda_visible=?,post_agenda_banner_url=?,post_agenda_banner_target=?,post_agenda_banner_label=?,post_agenda_banner_visible=?,passes_visible=?,pass_columns=?,gallery_heading=?,gallery_visible=?,gallery_target_url=?,footer_tagline=?,footer_copyright=?,linkedin_url=?,instagram_url=?,facebook_url=?,x_url=?,youtube_url=? WHERE forum=?`,
+      `UPDATE forum_settings SET speaker_event_year=IF(?,speaker_event_year,?),speaker_heading=?,hero_youtube_url=?,content_youtube_url=?,event_date=?,event_location=?,overview_stats=?,quote_text=?,quote_banner_url=?,quote_banner_target=?,quote_visible=?,agenda_visible=?,post_agenda_banner_url=?,post_agenda_banner_target=?,post_agenda_banner_label=?,post_agenda_banner_visible=?,passes_visible=?,pass_columns=?,gallery_heading=?,gallery_visible=?,gallery_target_url=?,footer_tagline=?,footer_copyright=?,linkedin_url=?,instagram_url=?,facebook_url=?,x_url=?,youtube_url=? WHERE forum=?`,
       [
+        speakerYear === undefined ? 1 : 0,
+        speakerYear ?? null,
         text('speaker_heading'),
         text('hero_youtube_url'),
         text('content_youtube_url'),
@@ -782,6 +796,10 @@ adminRouter.post('/forums/:forum/speakers', requireAdmin, requireCsrf, async (re
     const name = String(req.body.name || '').trim();
     if (!['india', 'south'].includes(forum) || !name)
       return res.status(422).json({ error: 'Forum and speaker name are required' });
+    const settings = (await query('SELECT speaker_event_year FROM forum_settings WHERE forum=?', [forum]))[0];
+    const eventYear = Number(req.body.event_year || settings?.speaker_event_year || 2026);
+    if (!Number.isInteger(eventYear) || eventYear < 2000 || eventYear > 2100)
+      return res.status(422).json({ error: 'Enter a speaker event year between 2000 and 2100.' });
     const result = await query(
       'INSERT INTO speakers (forum,name,role,image_url,event_year,is_featured,is_published,sort_order) VALUES (?,?,?,?,?,?,?,?)',
       [
@@ -789,7 +807,7 @@ adminRouter.post('/forums/:forum/speakers', requireAdmin, requireCsrf, async (re
         name,
         String(req.body.role || '').slice(0, 1000),
         String(req.body.image_url || '').slice(0, 1000) || null,
-        Number(req.body.event_year) || 2026,
+        eventYear,
         req.body.is_featured ? 1 : 0,
         req.body.is_published === false ? 0 : 1,
         Number(req.body.sort_order) || 0,
@@ -802,13 +820,17 @@ adminRouter.post('/forums/:forum/speakers', requireAdmin, requireCsrf, async (re
 });
 adminRouter.put('/speakers/:id', requireAdmin, requireCsrf, async (req, res, next) => {
   try {
+    const eventYear =
+      req.body.event_year === null || req.body.event_year === '' ? null : Number(req.body.event_year);
+    if (eventYear !== null && (!Number.isInteger(eventYear) || eventYear < 2000 || eventYear > 2100))
+      return res.status(422).json({ error: 'Enter a speaker event year between 2000 and 2100.' });
     await query(
       'UPDATE speakers SET name=?,role=?,image_url=?,event_year=?,is_featured=?,is_published=?,sort_order=? WHERE id=?',
       [
         String(req.body.name || '').trim(),
         String(req.body.role || '').slice(0, 1000),
         String(req.body.image_url || '').slice(0, 1000) || null,
-        Number(req.body.event_year) || 2026,
+        eventYear,
         req.body.is_featured ? 1 : 0,
         req.body.is_published ? 1 : 0,
         Number(req.body.sort_order) || 0,

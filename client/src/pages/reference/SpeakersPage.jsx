@@ -12,11 +12,7 @@ import {
 
 function Speakers({ south = false, path }) {
   const content = useForumContent(south ? 'south' : 'india');
-  const speakers = content?.speakers?.length
-    ? content.speakers
-    : south
-      ? reference.southSpeakers
-      : reference.speakers;
+  const speakers = content?.pastSpeakers ?? content?.speakers ?? (south ? reference.southSpeakers : []);
   return (
     <div className="reference-site">
       <SiteHeader path={path} />
@@ -25,7 +21,7 @@ function Speakers({ south = false, path }) {
         <Button light>Join as Partner</Button>
       </section>
       <section className="ref-section speaker-directory">
-        <SectionTitle>Speakers</SectionTitle>
+        <SectionTitle>{content?.settings?.speaker_event_year ? 'Past Speakers' : 'Speakers'}</SectionTitle>
         <p>
           Since 2014, RJIF has been the epicentre for Jewellery retail, service providers &amp; learning
           enthusiasts. It is the single largest congregation of forward-thinking jewellers shaping the

@@ -304,6 +304,8 @@ export default function AdminPanel() {
     [media, setMedia] = useState([]),
     [submissions, setSubmissions] = useState([]);
   const [registrations, setRegistrations] = useState([]);
+  const [speakerYearFilter, setSpeakerYearFilter] = useState('');
+  useEffect(() => setSpeakerYearFilter(''), [forum]);
   const [showManualRegistration, setShowManualRegistration] = useState(false);
   const [eventStaff, setEventStaff] = useState([]);
   const [highlights, setHighlights] = useState([]),
@@ -855,9 +857,49 @@ export default function AdminPanel() {
         {section === 'speakers' && (
           <section>
             <ForumPicker forum={forum} setForum={setForum} />
-            <p>
-              Featured speakers appear on the homepage; all published speakers appear on the Speakers page.
-            </p>
+            <article className="admin-card">
+              <Input
+                label="Current speaker event year"
+                type="number"
+                value={content.settings.speaker_event_year || ''}
+                onChange={(speaker_event_year) =>
+                  setContent({
+                    ...content,
+                    settings: { ...content.settings, speaker_event_year },
+                  })
+                }
+              />
+              <p>
+                The homepage shows featured speakers from this year. Earlier years appear in Past Speakers.
+                Advance the year when the next edition opens. Leave blank to keep the existing display.
+              </p>
+              <button type="button" className="button small" onClick={saveSettings}>
+                Save speaker event year
+              </button>
+            </article>
+            <label>
+              Filter speakers by year
+              <select
+                value={speakerYearFilter}
+                onChange={(event) => setSpeakerYearFilter(event.target.value)}
+              >
+                <option value="">All years</option>
+                {[
+                  ...new Set([
+                    ...content.speakers.map((speaker) => String(speaker.event_year || 'unassigned')),
+                    ...(content.settings.speaker_event_year
+                      ? [String(content.settings.speaker_event_year)]
+                      : []),
+                  ]),
+                ]
+                  .sort((a, b) => Number(b) - Number(a))
+                  .map((year) => (
+                    <option key={year} value={year}>
+                      {year === 'unassigned' ? 'Year not set' : year}
+                    </option>
+                  ))}
+              </select>
+            </label>
             <form
               className="admin-card"
               onSubmit={async (e) => {
@@ -883,7 +925,15 @@ export default function AdminPanel() {
               <ImageUploadField label="Speaker image" name="image_url" altText="Speaker portrait" />
               <label>
                 Event year
-                <input name="event_year" type="number" defaultValue="2026" />
+                <input
+                  key={`${forum}-${content.settings.speaker_event_year || 2026}`}
+                  name="event_year"
+                  type="number"
+                  min="2000"
+                  max="2100"
+                  required
+                  defaultValue={content.settings.speaker_event_year || 2026}
+                />
               </label>
               <label className="check">
                 <input name="is_featured" type="checkbox" value="1" /> Show on homepage
@@ -891,59 +941,65 @@ export default function AdminPanel() {
               <button className="button small">Add speaker</button>
             </form>
             <div className="admin-list">
-              {content.speakers.map((speaker, index) => (
-                <article className="admin-card" key={speaker.id}>
-                  {[
-                    ['Name', 'name'],
-                    ['Role', 'role'],
-                    ['Year', 'event_year', 'number'],
-                    ['Order', 'sort_order', 'number'],
-                  ].map(([label, key, type]) => (
-                    <Input
-                      key={key}
-                      label={label}
-                      type={type}
-                      value={speaker[key]}
-                      onChange={(value) => update('speakers', index, { [key]: value })}
+              {content.speakers
+                .map((speaker, index) => ({ speaker, index }))
+                .filter(
+                  ({ speaker }) =>
+                    !speakerYearFilter || String(speaker.event_year || 'unassigned') === speakerYearFilter,
+                )
+                .map(({ speaker, index }) => (
+                  <article className="admin-card" key={speaker.id}>
+                    {[
+                      ['Name', 'name'],
+                      ['Role', 'role'],
+                      ['Year', 'event_year', 'number'],
+                      ['Order', 'sort_order', 'number'],
+                    ].map(([label, key, type]) => (
+                      <Input
+                        key={key}
+                        label={label}
+                        type={type}
+                        value={speaker[key]}
+                        onChange={(value) => update('speakers', index, { [key]: value })}
+                      />
+                    ))}
+                    <ImageUploadField
+                      label="Speaker image"
+                      value={speaker.image_url}
+                      onChange={(image_url) => update('speakers', index, { image_url })}
+                      altText={speaker.name}
                     />
-                  ))}
-                  <ImageUploadField
-                    label="Speaker image"
-                    value={speaker.image_url}
-                    onChange={(image_url) => update('speakers', index, { image_url })}
-                    altText={speaker.name}
-                  />
-                  <label className="check">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(speaker.is_featured)}
-                      onChange={(e) => update('speakers', index, { is_featured: e.target.checked })}
-                    />{' '}
-                    Homepage/current year
-                  </label>
-                  <label className="check">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(speaker.is_published)}
-                      onChange={(e) => update('speakers', index, { is_published: e.target.checked })}
-                    />{' '}
-                    Published
-                  </label>
-                  <button
-                    className="button small"
-                    onClick={async () => {
-                      await api(`/admin/speakers/${speaker.id}`, {
-                        method: 'PUT',
-                        body: JSON.stringify(speaker),
-                      });
-                      await reloadForum();
-                      notify('Speaker saved.');
-                    }}
-                  >
-                    Save speaker
-                  </button>
-                </article>
-              ))}
+                    <label className="check">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(speaker.is_featured)}
+                        onChange={(e) => update('speakers', index, { is_featured: e.target.checked })}
+                      />{' '}
+                      Show on homepage for this speaker’s event year
+                    </label>
+                    <label className="check">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(speaker.is_published)}
+                        onChange={(e) => update('speakers', index, { is_published: e.target.checked })}
+                      />{' '}
+                      Published
+                    </label>
+                    <button
+                      className="button small"
+                      onClick={async () => {
+                        await api(`/admin/speakers/${speaker.id}`, {
+                          method: 'PUT',
+                          body: JSON.stringify(speaker),
+                        });
+                        await reloadForum();
+                        notify('Speaker saved.');
+                      }}
+                    >
+                      Save speaker
+                    </button>
+                  </article>
+                ))}
             </div>
           </section>
         )}

@@ -27,11 +27,7 @@ function Home({ south = false, path }) {
   useEffect(() => setSpeakerLimit(12), [south]);
   const content = useForumContent(south ? 'south' : 'india');
   const settings = content?.settings || {};
-  const speakers = content?.featuredSpeakers?.length
-    ? content.featuredSpeakers
-    : south
-      ? reference.southConference.speakers
-      : reference.home.speakers;
+  const speakers = content?.featuredSpeakers ?? (south ? reference.southConference.speakers : []);
   const gallery = content?.gallery?.length
     ? content.gallery
     : south
@@ -87,7 +83,11 @@ function Home({ south = false, path }) {
         location={settings.event_location || 'Grand Hyatt Mumbai'}
       />
       <section className="ref-section speakers-home" id="speakers">
-        <SectionTitle>{settings.speaker_heading || 'Speakers 2026'}</SectionTitle>
+        <SectionTitle>
+          {settings.speaker_event_year
+            ? `Speakers ${settings.speaker_event_year}`
+            : settings.speaker_heading || 'Speakers 2026'}
+        </SectionTitle>
         <SpeakerGrid speakers={speakers} limit={speakerLimit} />
         <div className="row-buttons">
           {speakerLimit < speakers.length && (

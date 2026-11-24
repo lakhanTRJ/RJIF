@@ -14,6 +14,7 @@ import {
   reserveSubscriberBenefit,
 } from '../subscriberCompanies.js';
 import { awardPricing } from '../../../client/src/awardPricing.js';
+import { speakerEditions } from '../speakerEditions.js';
 import { lockAwardInvitation, mountAwardInvitationPublic } from '../awardInvitations.js';
 import {
   getPassByToken,
@@ -1010,10 +1011,11 @@ publicRouter.get('/forum/:forum', async (req, res, next) => {
       'SELECT id,image_url AS image,image_alt AS alt,target_url,event_year,sort_order FROM gallery_items WHERE forum=? AND is_visible=1 ORDER BY event_year DESC,sort_order,id',
       [forum],
     );
+    const editions = speakerEditions(speakers, settings.speaker_event_year);
     res.json({
       settings,
-      speakers,
-      featuredSpeakers: speakers.filter((item) => item.is_featured),
+      speakers: editions.pastSpeakers,
+      ...editions,
       agenda,
       gallery,
     });
