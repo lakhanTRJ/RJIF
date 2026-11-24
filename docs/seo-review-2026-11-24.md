@@ -55,3 +55,13 @@ Desktop and narrow browser checks cover representative pages and admin workflows
 - Awards shows the closed-registration notice, and Blog renders the article listing.
 - Local admin: registration details retains View passes and Email passes; pass, testimonial and gallery editing saves and closes the popup. Cancel discards pass edits. Gallery upload opens in a popup.
 - Provided favicon is served as image/png by both local favicon endpoints.
+
+## Local fixes prepared
+
+- India and South homepage crawler HTML now uses current forum data shared with the public API; old seeded placeholders are replaced.
+- Generic or blank descriptions get path-specific defaults; custom administrator descriptions are preserved.
+- All pages receive Open Graph and Twitter image metadata using the RJ brand image; articles use their featured image when available.
+- Cart, checkout and account pages are omitted from the sitemap and receive noindex headers and meta tags. Admin and 404 noindex rules remain active.
+- Conference overview has a visible H1 with the existing typography.
+- Mobile Delegate Pass button remains in its original floating position at the user’s request. The proposed top bar was reverted. Desktop positioning is unchanged.
+- 53 regression tests, lint, production build, local HTML response checks and 390px mobile browser checks passed. These changes are not live until deployed.

@@ -10,7 +10,8 @@ import { config } from './config.js';
 import { pool } from './db.js';
 import { publicRouter, getPublishedArticle, getPublishedPage } from './routes/public.js';
 import { adminRouter } from './routes/admin.js';
-import { injectSeo } from './seo.js';
+import { injectSeo, isUtilityPage } from './seo.js';
+import { currentSeoPage } from './seoPages.js';
 import { MySqlSessionStore } from './sessionStore.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -140,7 +141,7 @@ export function createApp() {
         ),
       ]);
       const rows = [
-        ...pages,
+        ...pages.filter((page) => !isUtilityPage(page.path)),
         ...articles.map((article) => ({ path: `/blog/${article.slug}/`, updated_at: article.updated_at })),
       ];
       const escapeXml = (value) =>
@@ -182,20 +183,19 @@ export function createApp() {
             title: article.title,
             seo_title: article.seo_title || article.title,
             seo_description: article.seo_description || article.excerpt,
+            social_image: article.featured_image_url,
+            is_article: true,
+            sections: [{ body_html: article.body_html }],
           };
       }
+      page = await currentSeoPage(page);
       const status = page || req.path.startsWith('/admin') ? 200 : 404;
-      if (config.stagingNoindex || req.path.startsWith('/admin'))
-        res.set('X-Robots-Tag', 'noindex, nofollow');
+      const noindex = config.stagingNoindex || isUtilityPage(req.path) || status === 404;
+      if (noindex) res.set('X-Robots-Tag', 'noindex, nofollow');
       res
         .status(status)
         .send(
-          injectSeo(
-            html,
-            page || { path: req.path, title: 'Page not found' },
-            config.publicOrigin,
-            config.stagingNoindex || req.path.startsWith('/admin'),
-          ),
+          injectSeo(html, page || { path: req.path, title: 'Page not found' }, config.publicOrigin, noindex),
         );
     } catch (e) {
       next(e);

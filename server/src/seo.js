@@ -5,14 +5,60 @@ export function escapeHtml(value = '') {
   );
 }
 
+export function isUtilityPage(path = '') {
+  return /^\/(?:admin|cart|checkout|my-account)(?:\/|$)/.test(path);
+}
+
+const genericDescription = 'A Knowledge and Networking Platform where Forward-Thinking Jewellers Meet!';
+const descriptions = {
+  '/': 'Explore the Retail Jeweller India Forum: jewellery retail conversations, current speakers, conference agenda, event details and delegate passes.',
+  '/conference-south/':
+    'Discover the Retail Jeweller South Forum, bringing jewellery retailers together for industry conversations, speakers, networking and conference sessions.',
+  '/exhibition/':
+    'Explore exhibition and partnership opportunities at the Retail Jeweller India Forum and connect with the jewellery retail community.',
+  '/exhibition-south/':
+    'Explore the Retail Jeweller South Forum exhibition, partnership opportunities and testimonials from the jewellery retail community.',
+  '/business-excellence-awards/':
+    'Discover The Retail Jeweller India Business Excellence Awards, including award categories, nomination guidelines and registration information.',
+  '/blog/':
+    'Beyond the Forum: conversations, perspectives and ideas shaping the future of jewellery retail, from The Retail Jeweller India Forum.',
+  '/speakers/':
+    'Meet past speakers from the Retail Jeweller India Forum and explore the industry leaders who have shared their jewellery retail expertise.',
+  '/south-forum-speakers/':
+    'Explore past speakers from the Retail Jeweller South Forum and the leaders shaping jewellery retail across South India.',
+  '/previous-edition-highlights/':
+    'Browse photographs and highlights from previous Retail Jeweller India Forum editions, including conference sessions and industry gatherings.',
+  '/previous-edition-highlights-south/':
+    'Relive previous Retail Jeweller South Forum editions through event photographs, session highlights and jewellery industry gatherings.',
+  '/felicitation/':
+    'Discover the Retail Jeweller South Forum Circle of Excellence and its recognition of contributions to the jewellery retail industry.',
+  '/partner/':
+    'Connect with The Retail Jeweller Forum team about event partnerships, exhibiting and opportunities to reach the jewellery retail community.',
+  '/privacy-policy/':
+    'Read the Retail Jeweller India Forum privacy policy to understand how information collected through this website is handled.',
+};
+
+export function seoDescription(page = {}) {
+  const custom = String(page.seo_description || '').trim();
+  return custom && custom !== genericDescription
+    ? custom
+    : descriptions[page.path] ||
+        `Explore ${page.title || 'The Retail Jeweller India Forum'}: information and updates from the jewellery retail community.`;
+}
+
 export function injectSeo(html, page, origin, noindex = false) {
   const title = escapeHtml(page?.seo_title || page?.title || 'Retail Jeweller India Forum');
-  const description = escapeHtml(
-    page?.seo_description || 'A Knowledge and Networking Platform where Forward-Thinking Jewellers Meet!',
-  );
+  const description = escapeHtml(seoDescription(page));
   const path = page?.path || '/';
   const canonical = `${origin.replace(/\/$/, '')}${path}`;
-  const tags = `<title>${title}</title><meta name="description" content="${description}"><link rel="canonical" href="${canonical}"><meta property="og:title" content="${title}"><meta property="og:description" content="${description}"><meta property="og:url" content="${canonical}">${noindex ? '<meta name="robots" content="noindex,nofollow">' : ''}`;
+  let image = new URL('/favicon.png', origin).href;
+  try {
+    const candidate = new URL(page?.social_image || '/favicon.png', origin);
+    if (['https:', 'http:'].includes(candidate.protocol)) image = candidate.href;
+  } catch {
+    /* Keep the site branding image when an image URL is invalid. */
+  }
+  const tags = `<title>${title}</title><meta name="description" content="${description}"><link rel="canonical" href="${escapeHtml(canonical)}"><meta property="og:title" content="${title}"><meta property="og:description" content="${description}"><meta property="og:url" content="${escapeHtml(canonical)}"><meta property="og:type" content="${page?.is_article ? 'article' : 'website'}"><meta property="og:site_name" content="The Retail Jeweller India Forum"><meta property="og:image" content="${escapeHtml(image)}"><meta property="og:image:alt" content="${title}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${title}"><meta name="twitter:description" content="${description}"><meta name="twitter:image" content="${escapeHtml(image)}">${noindex ? '<meta name="robots" content="noindex,nofollow">' : ''}`;
   const rendered = page ? renderSeoBody(page) : '';
   return html
     .replace(/<title>.*?<\/title>/s, '')

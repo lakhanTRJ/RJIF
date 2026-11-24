@@ -993,32 +993,30 @@ publicRouter.get('/award-applications/:id/quote', async (req, res, next) => {
   }
 });
 
+export async function getForumContent(forum) {
+  const settings = (await query('SELECT * FROM forum_settings WHERE forum=? LIMIT 1', [forum]))[0] || {};
+  settings.overview_stats = parseJson(settings.overview_stats, []);
+  const speakers = await query(
+    'SELECT id,name,role,image_url AS image,event_year,is_featured,sort_order FROM speakers WHERE forum=? AND is_published=1 ORDER BY is_featured DESC,sort_order,id',
+    [forum],
+  );
+  const agenda = await query(
+    'SELECT id,number,title,subtitle,body,sort_order FROM agenda_items WHERE forum=? AND is_visible=1 ORDER BY sort_order,id',
+    [forum],
+  );
+  const gallery = await query(
+    'SELECT id,image_url AS image,image_alt AS alt,target_url,event_year,sort_order FROM gallery_items WHERE forum=? AND is_visible=1 ORDER BY event_year DESC,sort_order,id',
+    [forum],
+  );
+  const editions = speakerEditions(speakers, settings.speaker_event_year);
+  return { settings, speakers: editions.pastSpeakers, ...editions, agenda, gallery };
+}
+
 publicRouter.get('/forum/:forum', async (req, res, next) => {
   try {
     const forum = String(req.params.forum);
     if (!['india', 'south'].includes(forum)) return res.status(404).json({ error: 'Forum not found' });
-    const settings = (await query('SELECT * FROM forum_settings WHERE forum=? LIMIT 1', [forum]))[0] || {};
-    settings.overview_stats = parseJson(settings.overview_stats, []);
-    const speakers = await query(
-      'SELECT id,name,role,image_url AS image,event_year,is_featured,sort_order FROM speakers WHERE forum=? AND is_published=1 ORDER BY is_featured DESC,sort_order,id',
-      [forum],
-    );
-    const agenda = await query(
-      'SELECT id,number,title,subtitle,body,sort_order FROM agenda_items WHERE forum=? AND is_visible=1 ORDER BY sort_order,id',
-      [forum],
-    );
-    const gallery = await query(
-      'SELECT id,image_url AS image,image_alt AS alt,target_url,event_year,sort_order FROM gallery_items WHERE forum=? AND is_visible=1 ORDER BY event_year DESC,sort_order,id',
-      [forum],
-    );
-    const editions = speakerEditions(speakers, settings.speaker_event_year);
-    res.json({
-      settings,
-      speakers: editions.pastSpeakers,
-      ...editions,
-      agenda,
-      gallery,
-    });
+    res.json(await getForumContent(forum));
   } catch (error) {
     next(error);
   }

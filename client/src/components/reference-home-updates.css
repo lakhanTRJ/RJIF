@@ -683,7 +683,7 @@
   width: 40px;
   border-top: 3px solid currentColor;
 }
-.event-overview h2 {
+.event-overview h1 {
   max-width: 720px;
   margin: 0 0 34px;
   color: #181315;
@@ -692,7 +692,7 @@
   font-weight: 700;
   line-height: 1.02;
 }
-.event-overview h2::after {
+.event-overview h1::after {
   content: '';
   display: block;
   width: 130px;
@@ -1052,7 +1052,7 @@
     font-size: 13px;
     letter-spacing: 0.16em;
   }
-  .event-overview h2 {
+  .event-overview h1 {
     font-size: 38px;
     line-height: 1.04;
     margin-bottom: 30px;

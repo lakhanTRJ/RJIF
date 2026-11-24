@@ -687,7 +687,7 @@ export function EventOverview({
             <span />
             The Retail Jeweller India Forum
           </p>
-          <h2>{heading}</h2>
+          <h1>{heading}</h1>
           <div className="event-meta">
             <div>
               <span className="meta-icon">
