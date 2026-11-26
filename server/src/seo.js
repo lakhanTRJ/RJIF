@@ -60,10 +60,15 @@ export function injectSeo(html, page, origin, noindex = false) {
   }
   const tags = `<title>${title}</title><meta name="description" content="${description}"><link rel="canonical" href="${escapeHtml(canonical)}"><meta property="og:title" content="${title}"><meta property="og:description" content="${description}"><meta property="og:url" content="${escapeHtml(canonical)}"><meta property="og:type" content="${page?.is_article ? 'article' : 'website'}"><meta property="og:site_name" content="The Retail Jeweller India Forum"><meta property="og:image" content="${escapeHtml(image)}"><meta property="og:image:alt" content="${title}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${title}"><meta name="twitter:description" content="${description}"><meta name="twitter:image" content="${escapeHtml(image)}">${noindex ? '<meta name="robots" content="noindex,nofollow">' : ''}`;
   const rendered = page ? renderSeoBody(page) : '';
+  const pixelFallback =
+    !noindex && canTrackMetaPage(new URL(page?.tracking_path || path, origin))
+      ? `<noscript><img height="1" width="1" style="display:none" alt="" src="https://www.facebook.com/tr?id=${META_PIXEL_ID}&amp;ev=PageView&amp;noscript=1"></noscript>`
+      : '';
   return html
     .replace(/<title>.*?<\/title>/s, '')
     .replace('</head>', `${tags}</head>`)
-    .replace('<div id="root"></div>', `<div id="root">${rendered}</div>`);
+    .replace('<div id="root"></div>', `<div id="root">${rendered}</div>`)
+    .replace('</body>', `${pixelFallback}</body>`);
 }
 
 function renderSeoBody(page) {
@@ -92,3 +97,4 @@ function renderSeoBody(page) {
     .join('');
   return `<main data-prerendered="true"><h1>${escapeHtml(page.title || '')}</h1>${content}</main>`;
 }
+import { canTrackMetaPage, META_PIXEL_ID } from '../../client/src/metaPixel.js';

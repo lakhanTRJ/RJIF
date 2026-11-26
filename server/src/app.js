@@ -47,10 +47,15 @@ export function createApp() {
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
-          imgSrc: ["'self'", 'data:', 'https://i.ytimg.com'],
+          imgSrc: ["'self'", 'data:', 'https://i.ytimg.com', 'https://www.facebook.com'],
           styleSrc: ["'self'", "'unsafe-inline'"],
-          scriptSrc: ["'self'", 'https://checkout.razorpay.com'],
-          connectSrc: ["'self'", 'https://api.razorpay.com'],
+          scriptSrc: ["'self'", 'https://checkout.razorpay.com', 'https://connect.facebook.net'],
+          connectSrc: [
+            "'self'",
+            'https://api.razorpay.com',
+            'https://connect.facebook.net',
+            'https://www.facebook.com',
+          ],
           frameSrc: [
             "'self'",
             'https://www.youtube.com',
@@ -195,7 +200,12 @@ export function createApp() {
       res
         .status(status)
         .send(
-          injectSeo(html, page || { path: req.path, title: 'Page not found' }, config.publicOrigin, noindex),
+          injectSeo(
+            html,
+            { ...(page || { path: req.path, title: 'Page not found' }), tracking_path: req.originalUrl },
+            config.publicOrigin,
+            noindex,
+          ),
         );
     } catch (e) {
       next(e);
