@@ -112,6 +112,8 @@ function Checkout({ path }) {
   const members = Math.max(1, Number(pass?.member_count) || 1);
   const isAwardRegistration = pass?.kind === 'award_fee' || selected === 'awards-registration';
   const attendeeCount = members * quantity;
+  const needsIndividualAttendees = !isAwardRegistration && members === 1 && quantity > 1;
+  const includeAttendees = collectAttendees || needsIndividualAttendees;
   const unitPrice = Number(pass?.sale_price_paise || 0);
   const subtotal = isAwardRegistration && awardQuote ? awardQuote.subtotal : unitPrice * quantity;
   const taxAmount =
@@ -171,7 +173,7 @@ function Checkout({ path }) {
     setSubmitting(true);
     setError('');
     const data = new FormData(event.currentTarget);
-    const attendees = collectAttendees
+    const attendees = includeAttendees
       ? Array.from({ length: attendeeCount }, (_, index) => ({
           full_name: data.get(`attendee_name_${index}`),
           email: data.get(`attendee_email_${index}`),
@@ -374,9 +376,12 @@ function Checkout({ path }) {
                   </span>
                 </label>
               )}
-              {collectAttendees && (
+              {includeAttendees && (
                 <fieldset className="attendee-fields">
                   <legend>Attendee details</legend>
+                  {needsIndividualAttendees && (
+                    <p>Enter details for each of the {attendeeCount} people included in this booking.</p>
+                  )}
                   {Array.from({ length: attendeeCount }, (_, index) => (
                     <div key={index}>
                       <h3>Attendee {index + 1}</h3>
