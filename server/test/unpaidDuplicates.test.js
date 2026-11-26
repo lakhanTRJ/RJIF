@@ -5,6 +5,7 @@ import {
   assertUnpaid,
   archiveUnpaidDuplicate,
   assertGatewayUnpaid,
+  archiveUnpaidEntry,
 } from '../src/unpaidDuplicates.js';
 
 test('duplicate cleanup matches registered contacts and never accepts paid entries', () => {
@@ -54,6 +55,35 @@ function fakeDb({ paidTarget = false, hasPass = false, unrelated = false, paidLi
     },
   };
 }
+test('standalone cleanup archives without a replacement and records an audit', async () => {
+  const db = fakeDb();
+  await archiveUnpaidEntry(db, 'registrations', 1, 7);
+  assert.equal(db.writes.length, 2);
+  assert.equal(db.writes[1].args[1], 'archive_unpaid_entry');
+});
+test('standalone cleanup refuses paid entries, passes and gateway errors without writes', async () => {
+  for (const options of [{ paidTarget: true }, { hasPass: true }]) {
+    const db = fakeDb(options);
+    await assert.rejects(archiveUnpaidEntry(db, 'registrations', 1, 7), { status: 409 });
+    assert.equal(db.writes.length, 0);
+  }
+  const db = fakeDb();
+  await assert.rejects(
+    archiveUnpaidEntry(db, 'registrations', 1, 7, async () => {
+      throw new Error('Unavailable');
+    }),
+    /Unavailable/,
+  );
+  assert.equal(db.writes.length, 0);
+});
+test('standalone awards cleanup checks all linked orders and refuses paid links', async () => {
+  const db = fakeDb();
+  await archiveUnpaidEntry(db, 'awards', 1, 7);
+  assert.equal(db.writes.length, 3);
+  const paid = fakeDb({ paidLinked: true });
+  await assert.rejects(archiveUnpaidEntry(paid, 'awards', 1, 7), { status: 409 });
+  assert.equal(paid.writes.length, 0);
+});
 test('only the unpaid duplicate is archived and audit names the paid replacement', async () => {
   const db = fakeDb();
   let checked = 0;

@@ -21,6 +21,47 @@ export function assertUnpaid(row) {
   )
     throw conflict('Paid entries cannot be deleted. The paid registration must be kept.');
 }
+
+// Soft deletion retains audit/payment data and permits late payment reconciliation.
+// Caller owns the transaction and must roll back on any verification failure.
+export async function archiveUnpaidEntry(
+  db,
+  kind,
+  id,
+  adminId,
+  verifyGateway = async (order) => {
+    if (order.provider_order_id)
+      throw conflict('Payment status must be checked before deleting a gateway order.');
+  },
+) {
+  if (!['registrations', 'awards'].includes(kind) || !Number.isSafeInteger(id) || id < 1)
+    throw Object.assign(new Error('Invalid entry.'), { status: 422 });
+  const table = kind === 'awards' ? 'award_applications' : 'commerce_orders';
+  const [[target]] = await db.execute(`SELECT * FROM ${table} WHERE id=? FOR UPDATE`, [id]);
+  assertUnpaid(target);
+  if (target.archived_at) return;
+  if (kind === 'registrations' && target.award_application_id)
+    throw conflict(
+      'Remove this application from Business Awards so all linked payment attempts are checked together.',
+    );
+  const orders =
+    kind === 'awards'
+      ? (await db.execute('SELECT * FROM commerce_orders WHERE award_application_id=? FOR UPDATE', [id]))[0]
+      : [target];
+  for (const order of orders) {
+    assertUnpaid(order);
+    const [[pass]] = await db.execute('SELECT id FROM digital_passes WHERE order_id=? LIMIT 1', [order.id]);
+    if (pass) throw conflict('This entry has issued passes and cannot be deleted.');
+    await verifyGateway(order);
+  }
+  await db.execute(`UPDATE ${table} SET archived_at=NOW() WHERE id=?`, [id]);
+  if (kind === 'awards')
+    await db.execute('UPDATE commerce_orders SET archived_at=NOW() WHERE award_application_id=?', [id]);
+  await db.execute(
+    'INSERT INTO admin_audit_log (admin_user_id,action,entity_type,entity_id,metadata) VALUES (?,?,?,?,?)',
+    [adminId, 'archive_unpaid_entry', kind, String(id), JSON.stringify({ reason: 'admin_unpaid_cleanup' })],
+  );
+}
 // Caller owns transaction. Records remain available for reconciliation and late webhooks.
 export async function archiveUnpaidDuplicate(
   db,

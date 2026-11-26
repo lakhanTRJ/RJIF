@@ -1,68 +1,77 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { api } from '../../api.js';
+import './awards-editor-popup.css';
 
-export default function DeleteUnpaidDuplicate({ kind, row, paidRows, onDeleted, notify }) {
-  const [open, setOpen] = useState(false),
-    [replacement, setReplacement] = useState(''),
-    [busy, setBusy] = useState(false);
-  if (row.status === 'paid' || row.paid_at) return null;
+export default function DeleteUnpaidDuplicate({ kind, row, onDeleted, notify }) {
+  const dialog = useRef(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  if (row.status === 'paid' || row.payment_status === 'paid' || row.paid_at) return null;
   return (
-    <div>
-      <button type="button" className="button small secondary" disabled={busy} onClick={() => setOpen(!open)}>
-        Delete unpaid duplicate
+    <>
+      <button
+        type="button"
+        className="button small secondary"
+        onClick={() => {
+          setError('');
+          dialog.current.showModal();
+        }}
+      >
+        Delete entry
       </button>
-      {open && (
-        <div>
-          <p>
-            This hides only the unpaid duplicate. The paid entry and its passes remain unchanged. No refund is
-            issued. Payment history is retained. Razorpay status will be checked; a late confirmed payment
-            restores the entry.
-          </p>
-          <label>
-            Paid entry to keep
-            <select value={replacement} disabled={busy} onChange={(e) => setReplacement(e.target.value)}>
-              <option value="">Select the matching paid entry</option>
-              {paidRows
-                .filter((paid) => paid.status === 'paid' && paid.id !== row.id)
-                .map((paid) => (
-                  <option key={paid.id} value={paid.id}>
-                    #{paid.id} — {paid.customer_name || paid.full_name} — {paid.email} —{' '}
-                    {paid.product_name || paid.event_year} —{' '}
-                    {new Date(paid.created_at).toLocaleDateString('en-IN')}
-                  </option>
-                ))}
-            </select>
-          </label>
+      <dialog
+        ref={dialog}
+        className="awards-editor-dialog"
+        aria-label="Confirm delete entry"
+        onCancel={(event) => {
+          if (busy) event.preventDefault();
+        }}
+      >
+        <h2>Delete this unpaid entry?</h2>
+        <p>
+          <strong>{row.customer_name || row.full_name}</strong>
+          <br />
+          {row.company}
+          <br />
+          {row.email}
+        </p>
+        <p>
+          This removes the entry from the active list. Payment history is retained. Paid entries and issued
+          passes cannot be deleted. A late confirmed payment can restore the entry.
+        </p>
+        {error && <p role="alert">{error}</p>}
+        <div className="awards-editor-actions">
           <button
             type="button"
             className="button small secondary"
-            disabled={busy || !replacement}
+            disabled={busy}
+            onClick={() => dialog.current.close()}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="button small"
+            disabled={busy}
             onClick={async () => {
-              if (
-                !window.confirm(
-                  'Hide this UNPAID duplicate and keep the selected PAID entry? This does not refund or change the paid registration.',
-                )
-              )
-                return;
               setBusy(true);
+              setError('');
               try {
-                await api(`/admin/${kind}/${row.id}/unpaid-duplicate`, {
-                  method: 'DELETE',
-                  body: JSON.stringify({ paid_replacement_id: Number(replacement) }),
-                });
+                await api(`/admin/${kind}/${row.id}/unpaid-entry`, { method: 'DELETE' });
                 await onDeleted();
-                notify('Unpaid duplicate removed from the active list. Paid entry preserved.');
-              } catch (error) {
-                notify(error.message);
+                dialog.current?.close();
+                notify('Unpaid entry removed from the active list.');
+              } catch (failure) {
+                setError(failure.message);
               } finally {
                 setBusy(false);
               }
             }}
           >
-            {busy ? 'Removing…' : 'Confirm delete unpaid duplicate'}
+            {busy ? 'Checking payment and deleting…' : 'Confirm delete'}
           </button>
         </div>
-      )}
-    </div>
+      </dialog>
+    </>
   );
 }

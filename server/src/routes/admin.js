@@ -13,7 +13,7 @@ import { regenerateComplimentaryLink } from '../complimentaryLinks.js';
 import { validateSubscriber } from '../subscriberRules.js';
 import { saveSubscriber, currentAwardYear, reserveSubscriberBenefit } from '../subscriberCompanies.js';
 import { readSubscriberImport } from '../subscriberImport.js';
-import { archiveUnpaidDuplicate, assertGatewayUnpaid } from '../unpaidDuplicates.js';
+import { archiveUnpaidDuplicate, archiveUnpaidEntry, assertGatewayUnpaid } from '../unpaidDuplicates.js';
 import { registrationWorkbook } from '../registrationExports.js';
 import { speakerText } from '../../../client/src/speakerText.js';
 import { mountAwardInvitationAdmin } from '../awardInvitations.js';
@@ -1157,31 +1157,42 @@ adminRouter.get('/registrations', requireAdmin, async (req, res, next) => {
   }
 });
 adminRouter.delete(
-  '/:kind/:id/unpaid-duplicate',
+  ['/:kind/:id/unpaid-duplicate', '/:kind/:id/unpaid-entry'],
   requireAdministrator,
   requireCsrf,
   async (req, res, next) => {
     const db = await pool.getConnection();
     try {
       await db.beginTransaction();
-      await archiveUnpaidDuplicate(
-        db,
-        req.params.kind,
-        Number(req.params.id),
-        Number(req.body.paid_replacement_id),
-        req.session.adminId,
-        (order) =>
-          assertGatewayUnpaid(order, razorpayForOrder(order, config), fetch, (diagnostic) =>
-            console.error(
-              JSON.stringify({
-                level: 'warn',
-                type: 'duplicate_gateway_check',
-                localOrderId: order.id,
-                ...diagnostic,
-              }),
-            ),
+      const verifyGateway = (order) =>
+        assertGatewayUnpaid(order, razorpayForOrder(order, config), fetch, (diagnostic) =>
+          console.error(
+            JSON.stringify({
+              level: 'warn',
+              type: 'duplicate_gateway_check',
+              localOrderId: order.id,
+              ...diagnostic,
+            }),
           ),
-      );
+        );
+      if (req.path.endsWith('/unpaid-entry')) {
+        await archiveUnpaidEntry(
+          db,
+          req.params.kind,
+          Number(req.params.id),
+          req.session.adminId,
+          verifyGateway,
+        );
+      } else {
+        await archiveUnpaidDuplicate(
+          db,
+          req.params.kind,
+          Number(req.params.id),
+          Number(req.body.paid_replacement_id),
+          req.session.adminId,
+          verifyGateway,
+        );
+      }
       await db.commit();
       res.json({ ok: true });
     } catch (error) {
