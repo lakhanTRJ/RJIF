@@ -480,6 +480,8 @@ export default function AdminPanel() {
                               ['Company', row.company],
                               ['Email', row.email],
                               ['Mobile', row.phone],
+                              ['GSTIN', row.gstin],
+                              ['Billing address', row.billing_address],
                               ['Reference', row.public_id],
                               ['Registered', new Date(row.created_at).toLocaleString()],
                               ['Pass', row.product_name],

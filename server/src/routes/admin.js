@@ -1148,7 +1148,7 @@ adminRouter.get('/registrations', requireAdmin, async (req, res, next) => {
     if (status !== undefined && !orderPaymentStatuses.includes(status))
       return res.status(422).json({ error: 'Invalid payment status.' });
     const rows = await query(
-      `SELECT o.id,o.public_id,o.product_id,o.customer_name,o.company,o.email,o.phone,o.total_paise,o.status,o.created_at,o.payment_method,o.payment_reference,o.payment_notes,o.paid_at,p.name AS product_name,p.forum,COUNT(DISTINCT oa.id) AS attendee_count,COUNT(DISTINCT dp.id) AS pass_count FROM commerce_orders o JOIN commerce_products p ON p.id=o.product_id LEFT JOIN order_attendees oa ON oa.order_id=o.id LEFT JOIN digital_passes dp ON dp.order_id=o.id WHERE o.archived_at IS NULL ${status ? 'AND o.status=?' : ''} GROUP BY o.id ORDER BY o.created_at DESC LIMIT 200`,
+      `SELECT o.id,o.public_id,o.product_id,o.customer_name,o.company,o.email,o.phone,o.gstin,o.billing_address,o.total_paise,o.status,o.created_at,o.payment_method,o.payment_reference,o.payment_notes,o.paid_at,p.name AS product_name,p.forum,COUNT(DISTINCT oa.id) AS attendee_count,COUNT(DISTINCT dp.id) AS pass_count FROM commerce_orders o JOIN commerce_products p ON p.id=o.product_id LEFT JOIN order_attendees oa ON oa.order_id=o.id LEFT JOIN digital_passes dp ON dp.order_id=o.id WHERE o.archived_at IS NULL ${status ? 'AND o.status=?' : ''} GROUP BY o.id ORDER BY o.created_at DESC LIMIT 200`,
       status ? [status] : [],
     );
     res.json(rows);
